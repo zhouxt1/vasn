@@ -1,0 +1,19 @@
+[package]
+name = "vuper-examples"
+description = "Example ASN.1 modules, their vuperc-generated codecs, and drivers that run them"
+publish = false
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+
+[dependencies]
+vstd.workspace = true
+verus_builtin.workspace = true
+verus_builtin_macros.workspace = true
+vuperx.workspace = true
+
+[package.metadata.verus]
+verify = true
+
+[lints]
+workspace = true

@@ -1,0 +1,11 @@
+CONSTRAINT-Open DEFINITIONS AUTOMATIC TAGS ::=
+
+BEGIN
+
+-- Open range ends (X.680 51.4.3). asn1c cannot parse `<..<`, so these are
+-- checked against pycrate.
+
+Open ::= INTEGER (0<..<8)
+OpenLow ::= INTEGER (-1<..3)
+
+END

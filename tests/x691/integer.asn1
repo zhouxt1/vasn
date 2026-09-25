@@ -1,0 +1,22 @@
+INTEGER-Tests DEFINITIONS AUTOMATIC TAGS ::=
+
+BEGIN
+
+-- X.691 13.2.4, 11.8: no bounds: minimal 2's complement, with a length
+Unconstrained ::= INTEGER
+
+-- 13.2.3, 11.7: a lower bound only: n - lb, minimal octets, with a length
+Semi ::= INTEGER (-5..MAX)
+
+-- 13.1: an extension bit; a value outside the root is sent unconstrained
+Ext ::= INTEGER (0..7, ...)
+ExtOne ::= INTEGER (5, ...)
+ExtSemi ::= INTEGER (0..MAX, ...)
+
+-- as a component
+Rec ::= SEQUENCE {
+    a  Ext,
+    b  Unconstrained OPTIONAL
+}
+
+END

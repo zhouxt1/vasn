@@ -1,0 +1,11 @@
+TAGS-Auto DEFINITIONS AUTOMATIC TAGS ::=
+
+BEGIN
+
+-- Automatic tagging applies to a CHOICE only if no alternative is textually
+-- tagged (X.680 29.2). Then the order is textual; otherwise canonical.
+
+Textual ::= CHOICE { s OCTET STRING, i INTEGER (0..7), b BOOLEAN }
+NotAutomatic ::= CHOICE { s OCTET STRING, t [0] BOOLEAN, b BOOLEAN }
+
+END

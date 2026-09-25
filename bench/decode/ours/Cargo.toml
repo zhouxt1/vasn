@@ -1,0 +1,11 @@
+[package]
+name = "bench_ours"
+version = "0.1.0"
+edition = "2021"
+description = "vasn's NR channel-message decoders on a directory of UPER messages"
+
+[profile.release]
+codegen-units = 1
+
+# not part of the repository's other workspaces
+[workspace]

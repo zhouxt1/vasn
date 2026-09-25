@@ -1,0 +1,9 @@
+# xcheck: --containing octets
+# The default: the contents are octets, not decoded, as asn1c and VUPER keep
+# them. Checked against asn1c. The bytes are containing.vec's; what differs
+# is that octets which are no Inner's encoding are accepted.
+accept Outer 40816000 {"x":true,"inner":"0580"}
+accept Outer 40816040 {"x":true,"inner":"0581"}  # rejected under decode: a padding bit is 1
+accept Outer 40c1600000 {"x":true,"inner":"058000"}  # rejected under decode: an octet too many
+accept Empty 00 {"n":""}  # rejected under decode: no octet
+accept! Wrapped 020100 "0100"  # asn1c: its constraint check (-c) segfaults on a top-level CONTAINING type

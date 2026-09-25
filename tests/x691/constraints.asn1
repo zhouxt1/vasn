@@ -1,0 +1,48 @@
+CONSTRAINT-Tests DEFINITIONS AUTOMATIC TAGS ::=
+
+BEGIN
+
+-- Effective PER-visible constraints (X.691 10.3, X.680 50-51). Before
+-- constraints.rs vuperc kept the first `lb..ub` and skipped the rest of the
+-- parentheses, and dropped any constraint after a type reference.
+
+Base ::= INTEGER (0..255)
+
+-- a constraint on a type reference is PER-visible (10.3.18): 3 bits, not 8
+Sub ::= Base (0..7)
+
+-- unions: the bounds of the effective set
+Union ::= INTEGER (0..7 | 9)
+TwoValues ::= INTEGER (0 | 1)
+
+-- 10.3.21: EXCEPT is ignored
+Except ::= INTEGER (0..7 EXCEPT 3)
+
+-- serial application: the second constraint narrows the first
+Serial ::= INTEGER (0..100) (10..20)
+
+-- a contained subtype (51.3)
+Contained ::= INTEGER (Sub)
+
+-- value references in bounds
+maxLen INTEGER ::= 4
+Refs ::= INTEGER (1..maxLen)
+
+-- sizes: 10.3.10, the sizes some value has
+Octets8 ::= OCTET STRING (SIZE (1..8))
+SizeOfRef ::= Octets8 (SIZE (2..3))
+Items ::= SEQUENCE (SIZE (0..3)) OF Sub
+Pair ::= SEQUENCE SIZE (2) OF Base
+
+-- constraints on references, as fields
+Rec ::= SEQUENCE {
+    y  Base (0..1),
+    z  Sub,
+    w  Base (Sub),
+    s  Octets8 (SIZE (4))
+}
+
+-- not PER-visible on BOOLEAN (10.3.18): a plain BOOLEAN
+Flag ::= BOOLEAN (TRUE)
+
+END

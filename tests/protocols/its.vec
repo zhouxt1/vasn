@@ -1,0 +1,15 @@
+# ETSI ITS (examples/asn1/its.asn1, all three modules:
+# ITS-Container, DENM-PDU-Descriptions, CAM-PDU-Descriptions): no hand
+# vectors, only the reference deviations for its random-value check.
+#
+# companyName UTF8String (SIZE (1..24)): asn1c applies the SIZE as a
+# constrained length, where X.691 10.3.7 and 30.6 make it unconstrained, in
+# octets (see tests/x691/strings.vec, UtfSized).
+deviates asn1c DangerousGoodsExtended
+# and the types that hold a DangerousGoodsExtended: every value asn1c
+# decodes differently or rejects in them has a companyName (pycrate still
+# checks them)
+deviates asn1c StationaryVehicleContainer
+deviates asn1c AlacarteContainer
+deviates asn1c DENM
+deviates asn1c DecentralizedEnvironmentalNotificationMessage

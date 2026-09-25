@@ -1,0 +1,25 @@
+[workspace]
+resolver = "2"
+members = ["vuperx", "vuperc", "examples"]
+default-members = ["vuperx", "vuperc", "examples"]
+exclude = ["bench"]
+
+[workspace.package]
+version = "0.1.0"
+edition = "2021"
+license = "MIT"
+repository = "https://github.com/zhouxt1/vasn"
+authors = ["Xiaotian Zhou <xzz5503@psu.edu>"]
+
+[workspace.dependencies]
+# pinned to the Verus release in tools/get-verus.sh (0.2026.09.20.aef82ed)
+vstd = "=0.0.0-2026-09-20-0158"
+verus_builtin = "=0.0.0-2026-09-16-0054"
+verus_builtin_macros = "=0.0.0-2026-09-20-0158"
+vuperx = { path = "vuperx", version = "0.1.0" }
+
+[workspace.lints.rust]
+unexpected_cfgs = { level = "warn", check-cfg = ["cfg(verus_keep_ghost)", "cfg(verus_keep_ghost_body)", "cfg(verus_verify_core)"] }
+
+[profile.release]
+opt-level = 3

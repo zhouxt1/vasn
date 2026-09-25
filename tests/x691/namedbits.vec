@@ -1,0 +1,10 @@
+# Hand-derived from X.691 16; see tests/x691/README.md for the format.
+accept Flags 10 {"value":"80","length":1}  # '1'B: 3-bit length n - 1 = 0
+accept Flags 28 {"value":"40","length":2}  # '01'B: ends in a 1
+accept Flags 00 {"value":"00","length":1}  # no 1 bits: the smallest size, lb = 1 (16.3)
+reject! Flags 30  # '10'B: a trailing 0 above lb, not the smallest size
+reject! Flags 20  # '00'B: the no-1-bit value is sent as '0'B
+accept Fixed 40 "40"  # fixed at 4 bits: no length, and trailing zeros are the size (24.2 JER)
+accept Min2 10 {"value":"80","length":2}  # '10'B is at lb = 2: the 0 is needed
+reject! Min2 30  # '100'B: a trailing 0 above lb
+accept Min2 34 {"value":"A0","length":3}  # '101'B ends in a 1

@@ -1,0 +1,6 @@
+# Hand-derived from X.691 19; see tests/x691/README.md for the format.
+accept DefaultAddition 40 {"a":true}  # b at its default: ext bit 0
+accept DefaultAddition c0406800 {"a":true,"b":5}  # b = 5: ext bit 1, bitmap 1, b as an open type
+reject! DefaultAddition c0405800  # b = 3 sent explicitly (19.5). pycrate, asn1c accept
+accept Collide 40 {"a":true,"root":{"x":false}}  # ext bit 0, a, root.x
+accept Collide c0203000 {"a":true,"root":{"x":false},"ext0":{"y":true}}  # ext0 present

@@ -1,0 +1,13 @@
+EE-Definitions DEFINITIONS AUTOMATIC TAGS ::=
+BEGIN
+RatType ::= ENUMERATED {nr, eutra-nr, eutra, utra-fdd-v1610, ...}
+Grown ::= ENUMERATED {a, b, c, ..., d-v1700, e-v1700}
+Lone ::= ENUMERATED {only, ...}
+Plain ::= ENUMERATED {x, y}
+Holder ::= SEQUENCE {
+    rat RatType,
+    grown Grown OPTIONAL,
+    lone Lone,
+    plain Plain
+}
+END

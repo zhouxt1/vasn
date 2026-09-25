@@ -1,0 +1,51 @@
+OPT-Definitions DEFINITIONS AUTOMATIC TAGS ::=
+
+BEGIN
+
+Colour ::= ENUMERATED { red, green, blue }
+
+One ::= SEQUENCE {
+    a  BOOLEAN,
+    b  INTEGER (0..7)  OPTIONAL
+}
+
+Two ::= SEQUENCE {
+    a  INTEGER (0..15),
+    b  Colour          OPTIONAL,
+    c  BOOLEAN,
+    d  INTEGER (0..3)  OPTIONAL
+}
+
+AllOpt ::= SEQUENCE {
+    x  BOOLEAN         OPTIONAL,
+    y  Colour          OPTIONAL
+}
+
+-- A single-value INTEGER takes no bits (X.691 13.2.1); OPTIONAL, it still
+-- costs its preamble bit.
+Pinned ::= SEQUENCE {
+    a  INTEGER (5),
+    b  BOOLEAN,
+    c  INTEGER (0)  OPTIONAL
+}
+
+-- DEFAULT: a preamble bit that says "differs from the default". The field
+-- keeps its plain type; absent means the default.
+Q ::= ENUMERATED { dB-1, dB0, dB1 }
+
+Filter ::= SEQUENCE {
+    off     Q                  DEFAULT dB0,
+    maxCID  INTEGER (1..16)    DEFAULT 15,
+    on      BOOLEAN
+}
+
+-- The same, where the bounds are value references that happen to agree.
+maxOne INTEGER ::= 1
+
+Refd ::= SEQUENCE {
+    k  INTEGER (1..maxOne),
+    b  BOOLEAN,
+    o  INTEGER (1..maxOne)  OPTIONAL
+}
+
+END

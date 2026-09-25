@@ -1,0 +1,22 @@
+# Hand-derived from X.691 14; see tests/x691/README.md for the format.
+accept OutOfOrder 80 "a"  # a(2) is index 2 of b(0) c(1) a(2): 2 bits 10
+accept OutOfOrder 00 "b"  # b(0) is index 0
+accept OutOfOrder 40 "c"  # c(1) is index 1
+reject OutOfOrder c0  # index 3 does not exist
+accept Mixed 40 "a"  # b(0), so a = 1 and c = 2 (X.680 20.3): a is index 1
+accept Mixed 80 "c"  # c = 2, index 2
+accept Negative 00 "m"  # m(-1) sorts first
+accept Negative 80 "p"  # p(1) is index 2
+accept Sparse 80 "x"  # y(3) x(10): x is index 1 of 1 bit
+accept Sparse 00 "y"
+accept ExtNumbered 00 "b"  # root b(1) a(5): ext bit 0, b is index 0 of 1 bit
+accept ExtNumbered 40 "a"  # ext bit 0, index 1
+accept! ExtNumbered 80 "c"  # ext bit 1, normally small 0: 1 0 000000. pycrate: "d"
+accept! ExtNumbered 81 "d"  # d = 8 (X.680 20.6), the second addition: 1 0 000001. pycrate: "c"
+accept Holder 00 {"o":"b","s":"x"}  # o 2 bits (b = 00), s OPTIONAL-like DEFAULT bit 0: 0 00 -> 000
+accept Holder c0 {"o":"a","s":"y"}  # DEFAULT bit 1, o 10 (a), s 0 (y): 1 10 0
+
+# pycrate 0.7.11 orders ExtNumbered's additions d, c: it gives the unnumbered d
+# a value below c(7), where X.680 20.6 makes it 8 (and 20.4 requires the
+# additions ascending). asn1c agrees with X.691 here.
+deviates pycrate ExtNumbered

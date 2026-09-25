@@ -1,0 +1,60 @@
+CHOICE-Definitions DEFINITIONS AUTOMATIC TAGS ::=
+
+BEGIN
+
+Colour ::= ENUMERATED { red, green, blue }
+
+Small ::= INTEGER (0..15)
+
+-- three alternatives -> a 2-bit index
+Shape ::= CHOICE {
+    flag    BOOLEAN,
+    count   Small,
+    tint    Colour
+}
+
+-- two alternatives -> a 1-bit index
+Pick ::= CHOICE {
+    yes   BOOLEAN,
+    no    Colour
+}
+
+-- one alternative -> no index bits at all
+Only ::= CHOICE {
+    sole  Small
+}
+
+-- NULL as an alternative, the SetupRelease idiom
+Setting ::= CHOICE {
+    release  NULL,
+    setup    Small
+}
+
+-- Alternatives holding lists: the enum then has a spec companion, as a
+-- SEQUENCE holding a list does.
+Nibble ::= BIT STRING (SIZE (4))
+
+Carry ::= CHOICE {
+    none  NULL,
+    ids   SEQUENCE (SIZE (1..3)) OF Small,
+    bits  Nibble
+}
+
+-- Extensible (X.691 23): a bit, then the root index and the alternative, or a
+-- normally small index and the alternative as an open type.
+Pet ::= CHOICE {
+    cat   BOOLEAN,
+    dog   Small,
+    ...,
+    fish  Colour,
+    bird  BOOLEAN
+}
+
+-- One root alternative and nothing after the marker: no index bits, and every
+-- extension index is one this schema does not know.
+Lone ::= CHOICE {
+    only  BOOLEAN,
+    ...
+}
+
+END

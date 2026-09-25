@@ -1,0 +1,7 @@
+# Hand-derived from X.691 21, 22.2; see tests/x691/README.md.
+accept Textual ab40 {"x":"AB","y":false,"z":2}  # automatic tags: textual order x y z
+accept AnyFlags 0280 [true,false]  # SET OF, unconstrained: a general count
+
+# asn1c sorts SET OF elements when it re-encodes (CANONICAL-PER, X.691 22.1);
+# in BASIC-PER (22.2) any order is an encoding. See set_implicit.vec.
+deviates asn1c AnyFlags

@@ -1,0 +1,18 @@
+# Hand-derived from X.691 19; see tests/x691/README.md for the format.
+accept! Split 40 {"a":true,"c":false}  # ext bit 0, then a and c: c is in the root
+accept! Split c0203000 {"a":true,"b":true,"c":false}  # ext bit 1, a c, bitmap 1, b as an open type
+accept! LeadingExt 40 {"y":true}  # ext bit 0, then y, the only root component
+accept MixedGroup 40 {"a":true}  # group missing: ext bit 0. x is its default, which X.697 lets a printer omit
+accept MixedGroup c0406600 {"a":true,"x":3}  # x differs from 5: group present, preamble 10, x 011
+accept MixedGroup c0405000 {"a":true,"x":5,"y":false}  # y present: preamble 01, y 0
+reject! MixedGroup c0404000  # present with every value missing (19.9 requires bit 0). pycrate, asn1c accept
+reject! MixedGroup c0406a00  # x = 5 sent explicitly: 19.5 forbids it for a simple type. pycrate, asn1c accept
+
+# pycrate 0.7.11 and asn1c both drop the root components after a second
+# extension marker (X.680 25.1): `c` in Split, `y` in LeadingExt decode as
+# absent. X.691 19.9 NOTE 2: they "are encoded as if they were defined
+# immediately before the extension marker pair".
+deviates pycrate Split
+deviates asn1c Split
+deviates pycrate LeadingExt
+deviates asn1c LeadingExt

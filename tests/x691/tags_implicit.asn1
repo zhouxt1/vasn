@@ -1,0 +1,18 @@
+TAGS-Implicit DEFINITIONS IMPLICIT TAGS ::=
+
+BEGIN
+
+-- X.691 23.2: CHOICE alternatives are indexed in canonical tag order (X.680
+-- 8.6: universal, application, context, private; then by number), which is
+-- the textual order only under automatic tagging. vuperc used the textual
+-- order whatever the module's tagging.
+
+ByUniversal ::= CHOICE { s OCTET STRING, i INTEGER (0..7), b BOOLEAN }
+ByNumber ::= CHOICE { x [2] BOOLEAN, y [0] BOOLEAN, z [1] BOOLEAN }
+ByClass ::= CHOICE { a [APPLICATION 1] BOOLEAN, u BOOLEAN, p [PRIVATE 0] NULL, c [5] NULL }
+
+-- 23.3: an untagged CHOICE sorts as its smallest tag, here [1]
+Inner ::= CHOICE { k [3] NULL, j [1] NULL }
+Outer ::= CHOICE { m [2] NULL, n Inner }
+
+END

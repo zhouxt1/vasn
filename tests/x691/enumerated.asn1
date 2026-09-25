@@ -1,0 +1,20 @@
+ENUMERATED-Tests DEFINITIONS AUTOMATIC TAGS ::=
+
+BEGIN
+
+-- X.691 14.1: the root is indexed in ascending order of enumeration value,
+-- not in the order written. The values are X.680 20.3's for the root and
+-- 20.6's for the additions. vuperc used to drop the numbers.
+
+OutOfOrder ::= ENUMERATED { a(2), b(0), c(1) }
+Mixed ::= ENUMERATED { a, b(0), c }
+Negative ::= ENUMERATED { m(-1), z(0), p(1) }
+Sparse ::= ENUMERATED { x(10), y(3) }
+ExtNumbered ::= ENUMERATED { a(5), b(1), ..., c(7), d }
+
+Holder ::= SEQUENCE {
+    o  OutOfOrder,
+    s  Sparse DEFAULT x
+}
+
+END

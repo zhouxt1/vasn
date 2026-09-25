@@ -1,0 +1,14 @@
+NAMEDBITS-Tests DEFINITIONS AUTOMATIC TAGS ::=
+
+BEGIN
+
+-- X.691 16.3: with a NamedBitList (X.680 22.7), a value is sent at the
+-- smallest size that carries it and satisfies the effective size constraint.
+-- Any longer size with trailing 0 bits is a second encoding of one value,
+-- which an injective decoder rejects. vuperc used to keep trailing zeros.
+
+Flags ::= BIT STRING { a(0), b(1), c(2) } (SIZE (1..8))
+Fixed ::= BIT STRING { a(0), b(1) } (SIZE (4))
+Min2 ::= BIT STRING { x(0) } (SIZE (2..8))
+
+END

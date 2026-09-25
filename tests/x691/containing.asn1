@@ -1,0 +1,42 @@
+CONTAINING-Tests DEFINITIONS AUTOMATIC TAGS ::=
+
+BEGIN
+
+-- X.682 11 and X.691 11.1, 11.2: `OCTET STRING (CONTAINING T)` without
+-- ENCODED BY holds the complete encoding of a T, which is what an open type
+-- carries. vuperc keeps the octets by default, as asn1c and VUPER do, and
+-- decodes the T with the flag `containing decode`, as pycrate does. (ASN.1
+-- ends a comment at a second pair of hyphens, so the flag is not spelled
+-- out here.) Vectors: containing.vec when decoded, containing.octets.vec
+-- when not.
+
+Inner ::= SEQUENCE {
+    a  INTEGER (0..255),
+    b  BOOLEAN
+}
+
+Outer ::= SEQUENCE {
+    x      BOOLEAN,
+    inner  OCTET STRING (CONTAINING Inner),
+    opt    OCTET STRING (CONTAINING Inner) OPTIONAL
+}
+
+-- the contents encode to no bits at all: one 0 octet (X.691 11.1.3)
+Empty ::= SEQUENCE {
+    n  OCTET STRING (CONTAINING NULL)
+}
+
+-- a contained type written inline, and a contained type that is itself a
+-- CHOICE holding a CONTAINING
+Nest ::= SEQUENCE {
+    c  OCTET STRING (CONTAINING CHOICE {
+           i  INTEGER (0..7),
+           o  OCTET STRING (CONTAINING Inner)
+       })
+}
+
+-- a top-level contents-constrained type, and a list of them
+Wrapped ::= OCTET STRING (CONTAINING Inner)
+WrappedList ::= SEQUENCE (SIZE (1..4)) OF Wrapped
+
+END

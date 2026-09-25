@@ -1,0 +1,24 @@
+ADDITION-Tests DEFINITIONS AUTOMATIC TAGS ::=
+
+BEGIN
+
+-- X.691 19.5 for an extension addition outside [[ ]]: equal to its default,
+-- it is not encoded. vuperc used to keep it as an Option, so both None and
+-- Some(3) encoded, the second explicitly.
+DefaultAddition ::= SEQUENCE {
+    a  BOOLEAN,
+    ...,
+    b  INTEGER (0..7) DEFAULT 3
+}
+
+-- fields named like an extensible SEQUENCE's hidden parts (`Foo-root`,
+-- `Foo-ext0`): vuperc used to hoist the inline types onto those names, which
+-- rustc then rejected as duplicates
+Collide ::= SEQUENCE {
+    a     BOOLEAN,
+    root  SEQUENCE { x BOOLEAN },
+    ...,
+    ext0  SEQUENCE { y BOOLEAN }  OPTIONAL
+}
+
+END

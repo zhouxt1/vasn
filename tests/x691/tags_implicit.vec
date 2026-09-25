@@ -1,0 +1,28 @@
+# Hand-derived from X.691 23 and X.680 8.6; see tests/x691/README.md.
+accept! ByUniversal 20 {"b":true}  # b (UNIVERSAL 1) is index 0 of 3: 00, then TRUE. pycrate: textual order
+accept! ByUniversal 68 {"i":5}  # i (UNIVERSAL 2) is index 1: 01, then 101. pycrate: textual order
+accept! ByUniversal 8000 {"s":""}  # s (UNIVERSAL 4) is index 2: 10, then an 8-bit length 0. pycrate: textual order
+accept! ByNumber 20 {"y":true}  # [0] [1] [2] is y z x: y is 00. pycrate: textual order; asn1c: its to/from-canonical maps are swapped
+accept! ByNumber 80 {"x":false}  # x [2] is 10. pycrate: textual order; asn1c: its to/from-canonical maps are swapped
+accept! ByClass 20 {"u":true}  # universal first: u 00. pycrate: textual order
+accept! ByClass 40 {"a":false}  # then application: a 01. pycrate: textual order
+accept! ByClass 80 {"c":null}  # then context: c 10. pycrate: textual order
+accept! ByClass c0 {"p":null}  # then private: p 11. pycrate: textual order
+accept! Outer 00 {"n":{"j":null}}  # n sorts as [1], before m [2]: 0; Inner's j [1] before k [3]: 0. pycrate: textual order
+accept! Outer 80 {"m":null}  # m is index 1. pycrate: textual order
+
+# pycrate 0.7.11 indexes CHOICE alternatives in textual order whatever the
+# module's tagging, where X.691 23.2 requires X.680 8.6's canonical order.
+deviates pycrate ByUniversal
+deviates pycrate ByNumber
+deviates pycrate ByClass
+deviates pycrate Outer
+# asn1c (mouse07410 v1.5.1-44) generates the right canonical order in
+# asn_MAP_*_tag2el but swaps asn_MAP_*_to_canonical and _from_canonical, so a
+# reordering that is not its own inverse comes out wrong: ByNumber's textual
+# x y z -> canonical y z x is a 3-cycle. The pairwise swaps of ByUniversal and
+# ByClass are their own inverses, and pass.
+deviates asn1c ByNumber
+
+# Inner k [3] j [1] is j k canonically; pycrate keeps k j
+deviates pycrate Inner

@@ -1,0 +1,18 @@
+SIZE-Tests DEFINITIONS AUTOMATIC TAGS ::=
+
+BEGIN
+
+-- X.691 16.6, 17.3, 20.4: an extensible SIZE is one bit, then the root's
+-- encoding if the size is in the root, else the size as a semi-constrained
+-- whole number (the general length determinant, 11.9.4.2) and the content.
+ExtOctets ::= OCTET STRING (SIZE (1..4, ...))
+ExtBits ::= BIT STRING (SIZE (8, ...))
+ExtList ::= SEQUENCE (SIZE (0..2, ...)) OF BOOLEAN
+SemiExtOctets ::= OCTET STRING (SIZE (2..MAX, ...))
+
+-- 11.9.4.2: no upper bound: the general determinant holding n
+SemiList ::= SEQUENCE (SIZE (1..MAX)) OF INTEGER (0..3)
+AnyBits ::= BIT STRING
+AnyList ::= SEQUENCE OF BOOLEAN
+
+END

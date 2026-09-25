@@ -1,0 +1,10 @@
+# Hand-derived from X.691 19, 23, 14, 13 and X.680 13.4; see tests/x691/README.md.
+accept Seq 40 {"a":true}  # extension bit 0, then a: 0 1
+accept Alt 40 {"y":null}  # extension bit 0, index 1 of 1 bit: 0 1
+accept! Enum 40 "q"  # extension bit 0, index 1: 0 1. asn1c: "p", no extension bit
+accept Int c0 3  # no extension bit on a constraint: 2 bits 11
+
+# asn1c applies EXTENSIBILITY IMPLIED to SEQUENCE and CHOICE but not to
+# ENUMERATED (its Enum.c: "Enumeration is not extensible"). X.680 13.4 covers
+# every type in which an extension marker is permitted, ENUMERATED included.
+deviates asn1c Enum

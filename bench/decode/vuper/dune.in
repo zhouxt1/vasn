@@ -1,0 +1,8 @@
+; Appended to a copy of ../VUPER/diff_test/fuzz/ocaml_test by build.sh, with
+; VUPER's own flags for its time_test.
+(executable
+ (name vbench)
+ (modules vbench)
+ (libraries formats mtime.clock.os)
+ (ocamlopt_flags (:standard -O3))
+)

@@ -1,0 +1,91 @@
+SMALLNUM-Tests DEFINITIONS AUTOMATIC TAGS ::=
+
+BEGIN
+
+-- X.691 11.6: a normally small non-negative whole number is 0 and 6 bits up
+-- to 63, else 1 and a semi-constrained whole number (11.6.2). It is a CHOICE
+-- extension index (23.8) and an ENUMERATED one (14.3). vuperc used to reject
+-- 64 or more, and any schema with more than 64 extension additions.
+
+BigChoice ::= CHOICE {
+    r BOOLEAN,
+    ...,
+    e0 BOOLEAN,
+    e1 BOOLEAN,
+    e2 BOOLEAN,
+    e3 BOOLEAN,
+    e4 BOOLEAN,
+    e5 BOOLEAN,
+    e6 BOOLEAN,
+    e7 BOOLEAN,
+    e8 BOOLEAN,
+    e9 BOOLEAN,
+    e10 BOOLEAN,
+    e11 BOOLEAN,
+    e12 BOOLEAN,
+    e13 BOOLEAN,
+    e14 BOOLEAN,
+    e15 BOOLEAN,
+    e16 BOOLEAN,
+    e17 BOOLEAN,
+    e18 BOOLEAN,
+    e19 BOOLEAN,
+    e20 BOOLEAN,
+    e21 BOOLEAN,
+    e22 BOOLEAN,
+    e23 BOOLEAN,
+    e24 BOOLEAN,
+    e25 BOOLEAN,
+    e26 BOOLEAN,
+    e27 BOOLEAN,
+    e28 BOOLEAN,
+    e29 BOOLEAN,
+    e30 BOOLEAN,
+    e31 BOOLEAN,
+    e32 BOOLEAN,
+    e33 BOOLEAN,
+    e34 BOOLEAN,
+    e35 BOOLEAN,
+    e36 BOOLEAN,
+    e37 BOOLEAN,
+    e38 BOOLEAN,
+    e39 BOOLEAN,
+    e40 BOOLEAN,
+    e41 BOOLEAN,
+    e42 BOOLEAN,
+    e43 BOOLEAN,
+    e44 BOOLEAN,
+    e45 BOOLEAN,
+    e46 BOOLEAN,
+    e47 BOOLEAN,
+    e48 BOOLEAN,
+    e49 BOOLEAN,
+    e50 BOOLEAN,
+    e51 BOOLEAN,
+    e52 BOOLEAN,
+    e53 BOOLEAN,
+    e54 BOOLEAN,
+    e55 BOOLEAN,
+    e56 BOOLEAN,
+    e57 BOOLEAN,
+    e58 BOOLEAN,
+    e59 BOOLEAN,
+    e60 BOOLEAN,
+    e61 BOOLEAN,
+    e62 BOOLEAN,
+    e63 BOOLEAN,
+    e64 BOOLEAN,
+    e65 BOOLEAN,
+    e66 BOOLEAN,
+    e67 BOOLEAN,
+    e68 BOOLEAN,
+    e69 BOOLEAN
+}
+
+BigEnum ::= ENUMERATED { r0, r1, ..., v0, v1, v2, v3, v4, v5, v6, v7, v8, v9, v10, v11, v12, v13, v14, v15, v16, v17, v18, v19, v20, v21, v22, v23, v24, v25, v26, v27, v28, v29, v30, v31, v32, v33, v34, v35, v36, v37, v38, v39, v40, v41, v42, v43, v44, v45, v46, v47, v48, v49, v50, v51, v52, v53, v54, v55, v56, v57, v58, v59, v60, v61, v62, v63, v64, v65, v66, v67, v68, v69 }
+
+-- a CHOICE with one extension alternative: an index of 100 is a newer
+-- peer's, kept as an unknown alternative
+Small ::= CHOICE { a BOOLEAN, ..., b NULL }
+
+END

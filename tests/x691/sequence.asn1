@@ -1,0 +1,21 @@
+SEQUENCE-Tests DEFINITIONS AUTOMATIC TAGS ::=
+
+BEGIN
+
+-- X.680 25.1: components after a second extension marker are root
+-- components, encoded as if written before the first (X.691 19.9 NOTE 2).
+-- vuperc used to make `c` an extension addition.
+Split ::= SEQUENCE { a BOOLEAN, ..., b BOOLEAN, ..., c BOOLEAN }
+LeadingExt ::= SEQUENCE { ..., x BOOLEAN, ..., y BOOLEAN }
+
+-- X.691 19.9: a group whose component values are all missing is a missing
+-- addition. With a DEFAULT in it, "missing" includes equal to the default
+-- (19.5). vuperc used to apply this only to all-OPTIONAL groups.
+MixedGroup ::= SEQUENCE {
+    a  BOOLEAN,
+    ...,
+    [[ x  INTEGER (0..7) DEFAULT 5,
+       y  BOOLEAN OPTIONAL ]]
+}
+
+END

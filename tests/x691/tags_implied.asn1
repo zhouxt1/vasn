@@ -1,0 +1,13 @@
+TAGS-Implied DEFINITIONS AUTOMATIC TAGS EXTENSIBILITY IMPLIED ::=
+
+BEGIN
+
+-- X.680 13.4: EXTENSIBILITY IMPLIED is an extension marker in every type that
+-- may have one: SEQUENCE, CHOICE, ENUMERATED. Not in constraints (13.4 NOTE).
+
+Seq ::= SEQUENCE { a BOOLEAN }
+Alt ::= CHOICE { x BOOLEAN, y NULL }
+Enum ::= ENUMERATED { p, q }
+Int ::= INTEGER (0..3)
+
+END

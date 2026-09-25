@@ -1,0 +1,27 @@
+# Hand-derived from X.691 30, 11.9; see tests/x691/README.md.
+accept Ia5 291a40 "Hi"  # SIZE (0..8): 4-bit length; IA5 128 characters, 7 bits, direct
+accept Ia5 00 ""  # empty
+accept Num 48c0 "12"  # NumericString: 11 characters, 4 bits, by index (space 0, '0' 1, ...)
+reject Num 2c  # index 11 is past the 11 characters
+accept Prn 8388 "Ab"  # PrintableString: 74 characters, 7 bits, direct ('z' is 122); SIZE (2): no length
+accept Vis 9020 "CAB"  # FROM A..F: 6 characters, 3 bits, by index
+accept Hex 020f "0F"  # 16 characters in two ranges, 4 bits, by index; general length
+accept Low 0384 "cab"  # 4 characters, 2 bits, by index
+accept! One 00 "xxx"  # one character: 0 bits each (30.5.2), SIZE (3): nothing at all, one zero octet (11.1.3.1)
+accept ExtStr 387100 "ab"  # size 2 in the root: bit 0, 2-bit length
+accept! ExtStr 82e1c58f2650 "abcde"  # size 5: bit 1, general length, same alphabet (30.4)
+accept Utf 02c3a9 "é"  # U+00E9, two octets C3 A9, a length in octets
+accept Utf 00 ""  # empty
+reject! Utf 0180  # a lone continuation octet is not UTF-8. pycrate, asn1c accept
+reject! Utf 02c0af  # C0 AF, an overlong '/', is not UTF-8. pycrate, asn1c accept
+accept! UtfSized 06616263646566 "abcdef"  # 6 characters although SIZE (1..4): not PER-visible
+
+# pycrate 0.7.11 fails on a one-character alphabet: "NameError: name 'V' is
+# not defined", from its own generated code.
+deviates pycrate One
+# asn1c treats UTF8String's SIZE as PER-visible: it reads 06616263646566 as a
+# 2-bit length and then octets ("\u0019"). X.691 10.3.7 and 30.6: no
+# constraint on a string that is not known-multiplier is PER-visible, so the
+# length is always the unconstrained one, in octets. (And asn1c -c rejects
+# ExtStr's sizes outside the root, as for every extensible constraint.)
+deviates asn1c UtfSized

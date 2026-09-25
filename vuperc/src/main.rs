@@ -1,0 +1,138 @@
+mod ast;
+mod lexer;
+mod parser;
+mod emit;
+mod stats;
+mod normalize;
+mod constraints;
+
+use std::process::ExitCode;
+
+fn main() -> ExitCode {
+    let args: Vec<String> = std::env::args().collect();
+    let stats_only = args.iter().any(|a| a == "--stats");
+    let flag = |f: &str| args.iter().position(|a| a == f).and_then(|i| args.get(i + 1));
+    let split_dir = flag("--output-dir");
+    let crate_dir = flag("--crate-dir");
+    let driver = flag("--driver");
+    let containing = match flag("--containing").map(|s| s.as_str()) {
+        None | Some("octets") => ast::ContainingMode::Octets,
+        Some("decode") => ast::ContainingMode::Decode,
+        Some(o) => {
+            eprintln!("vuperc: --containing is `octets` or `decode`, not `{o}`");
+            return ExitCode::from(2);
+        }
+    };
+    // positional arguments: the input files, then the output unless a mode
+    // that writes elsewhere is given
+    let mut pos: Vec<&String> = Vec::new();
+    let mut i = 1;
+    while i < args.len() {
+        match args[i].as_str() {
+            "--output-dir" | "--crate-dir" | "--driver" | "--containing" => i += 2,
+            a if a.starts_with("--") => i += 1,
+            _ => {
+                pos.push(&args[i]);
+                i += 1;
+            }
+        }
+    }
+    let out_path = if stats_only || split_dir.is_some() || crate_dir.is_some() { None } else { pos.pop() };
+    if pos.is_empty() || (out_path.is_none() && !stats_only && split_dir.is_none() && crate_dir.is_none()) {
+        eprintln!("usage: vuperc <input.asn1>... <output.rs>");
+        eprintln!("       vuperc <input.asn1>... --stats");
+        eprintln!("       vuperc <input.asn1>... --output-dir <dir>   (one module per type)");
+        eprintln!("       vuperc <input.asn1>... --crate-dir <dir>    (one crate per type + Makefile)");
+        eprintln!("       vuperc <input.asn1>... <output.rs> --driver <driver.rs>   (and a test driver)");
+        eprintln!("every module of every input is compiled, into one namespace");
+        eprintln!("--containing octets (default) | decode: OCTET STRING (CONTAINING T) as its");
+        eprintln!("    octets, as asn1c and VUPER do, or as the T they encode, as pycrate does");
+        return ExitCode::from(2);
+    }
+    let mut mods = Vec::new();
+    for path in &pos {
+        let src = match std::fs::read_to_string(path) {
+            Ok(s) => s,
+            Err(e) => {
+                eprintln!("vuperc: cannot read {path}: {e}");
+                return ExitCode::from(2);
+            }
+        };
+        match parser::Parser::new(&src).and_then(|mut p| p.parse_modules()) {
+            Ok(m) => mods.extend(m),
+            Err(e) => {
+                eprintln!("vuperc: {path}: {e}");
+                return ExitCode::FAILURE;
+            }
+        }
+    }
+    let nmods = mods.len();
+    let mut module = match ast::merge(mods) {
+        Ok((m, missing)) => {
+            for (n, from) in &missing {
+                eprintln!("vuperc: warning: `{n}` is imported from {from}, which is not in the input");
+            }
+            m
+        }
+        Err(e) => {
+            eprintln!("vuperc: {e}");
+            return ExitCode::FAILURE;
+        }
+    };
+    if nmods > 1 {
+        eprintln!("vuperc: {nmods} modules: {}", module.name);
+    }
+    let expanded = normalize::expand_params(&mut module);
+    // effective PER-visible constraints, before hoisting: what is hoisted
+    // depends on them (a one-value INTEGER is)
+    constraints::resolve(&mut module, containing);
+    let hoisted = normalize::hoist(&mut module);
+    let broken = normalize::break_containing_cycles(&mut module);
+    let _ = expanded;
+    if stats_only {
+        stats::report(&module);
+        return ExitCode::SUCCESS;
+    }
+    let out = emit::emit(&module);
+    if let Some(dir) = crate_dir {
+        match emit::write_crates(&out, std::path::Path::new(dir)) {
+            Ok(n) => eprintln!("vuperc: wrote {n} crates and a Makefile to {dir}/"),
+            Err(e) => {
+                eprintln!("vuperc: cannot write {dir}: {e}");
+                return ExitCode::from(2);
+            }
+        }
+    } else if let Some(dir) = split_dir {
+        match emit::write_split(&out, std::path::Path::new(dir)) {
+            Ok(n) => eprintln!("vuperc: wrote {n} files to {dir}/"),
+            Err(e) => {
+                eprintln!("vuperc: cannot write {dir}: {e}");
+                return ExitCode::from(2);
+            }
+        }
+    } else if let Err(e) = std::fs::write(out_path.unwrap(), &out.code) {
+        eprintln!("vuperc: cannot write {}: {e}", out_path.unwrap());
+        return ExitCode::from(2);
+    } else if let Some(d) = driver {
+        let file = std::path::Path::new(out_path.unwrap()).file_name().unwrap().to_string_lossy().into_owned();
+        if let Err(e) = std::fs::write(d, emit::driver(&out, &file)) {
+            eprintln!("vuperc: cannot write {d}: {e}");
+            return ExitCode::from(2);
+        }
+    }
+    eprintln!(
+        "vuperc: {} types compiled, {} skipped ({hoisted} inline types hoisted)",
+        out.compiled, out.skipped.len()
+    );
+    if !broken.is_empty() {
+        eprintln!(
+            "vuperc: {} CONTAINING kept as octets, their contents leading back to them: {}",
+            broken.len(),
+            broken.join(", ")
+        );
+    }
+    for (name, why) in &out.skipped {
+        eprintln!("  skipped {name}: {why}");
+    }
+    ExitCode::SUCCESS
+}

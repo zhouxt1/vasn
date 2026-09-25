@@ -1,0 +1,33 @@
+# bench/decode/README.md's steps, from this tree: run.sh on each channel's
+# common.sh set, core 4, AMD Ryzen 9 9950X3D, performance governor.
+# OVERVIEW.md's table is the min column.
+== DL-DCCH-Message (DL-DCCH-common)
+ours  127581 messages, 127581 decoded, min 1295.5 ns/msg, median 1297.7 ns/msg
+asn1c 127581 messages, 127581 decoded, min 2542.2 ns/msg, median 2551.6 ns/msg
+rasn  127581 messages, 127581 decoded, min 4199.9 ns/msg, median 4209.7 ns/msg
+vuper 127581 messages, 127581 decoded, min 31984.3 ns/msg, median 32085.5 ns/msg
+== UL-DCCH-Message (UL-DCCH-common)
+ours  156284 messages, 156284 decoded, min 320.1 ns/msg, median 321.1 ns/msg
+asn1c 156284 messages, 156284 decoded, min 665.3 ns/msg, median 666.8 ns/msg
+rasn  156284 messages, 156284 decoded, min 1047.8 ns/msg, median 1049.8 ns/msg
+vuper 156284 messages, 156284 decoded, min 3734.2 ns/msg, median 3736.5 ns/msg
+== PCCH-Message (PCCH-common)
+ours  355025 messages, 355025 decoded, min 200.2 ns/msg, median 208.1 ns/msg
+asn1c 355025 messages, 355025 decoded, min 160.4 ns/msg, median 160.8 ns/msg
+rasn  355025 messages, 355025 decoded, min 554.6 ns/msg, median 558.8 ns/msg
+== BCCH-BCH-Message (BCCH-BCH-common)
+ours  9897 messages, 9897 decoded, min 50.2 ns/msg, median 50.6 ns/msg
+asn1c 9897 messages, 9897 decoded, min 161.7 ns/msg, median 166.7 ns/msg
+rasn  9897 messages, 9897 decoded, min 267.3 ns/msg, median 276.8 ns/msg
+== BCCH-DL-SCH-Message (BCCH-DL-SCH-common)
+ours  4871 messages, 4871 decoded, min 1966.1 ns/msg, median 1970.9 ns/msg
+asn1c 4871 messages, 4871 decoded, min 5444.3 ns/msg, median 5470.0 ns/msg
+rasn  4871 messages, 4871 decoded, min 7097.1 ns/msg, median 7105.7 ns/msg
+== UL-CCCH-Message (UL-CCCH-common)
+ours  9496 messages, 9496 decoded, min 155.9 ns/msg, median 156.8 ns/msg
+asn1c 9496 messages, 9496 decoded, min 107.4 ns/msg, median 108.8 ns/msg
+rasn  9496 messages, 9496 decoded, min 386.3 ns/msg, median 389.2 ns/msg
+== DL-CCCH-Message (DL-CCCH-common)
+ours  53722 messages, 53722 decoded, min 621.3 ns/msg, median 652.1 ns/msg
+asn1c 53722 messages, 53722 decoded, min 510.4 ns/msg, median 514.6 ns/msg
+rasn  53722 messages, 53722 decoded, min 1098.3 ns/msg, median 1099.6 ns/msg

@@ -1,0 +1,37 @@
+-- A small module exercising what vuperc supports today.
+DEMO-Definitions DEFINITIONS AUTOMATIC TAGS ::=
+
+BEGIN
+
+maxCells INTEGER ::= 31
+
+Alpha ::= ENUMERATED { alpha0, alpha04, alpha05, alpha06, alpha07, alpha08, alpha09, alpha1 }
+
+XOverhead ::= ENUMERATED { xOh6, xOh12, xOh18 }
+
+ServCellIndex ::= INTEGER (0..maxCells)
+
+NrofHARQ ::= INTEGER (1..16)
+
+PDSCH-ServingCellConfig ::= SEQUENCE {
+    nrofHARQ-ProcessesForPDSCH  NrofHARQ,
+    pucch-Cell                  ServCellIndex,
+    xOverhead                   XOverhead,
+    codeBlockGroupTransmission  BOOLEAN,
+    alpha                       Alpha
+}
+
+Pair ::= SEQUENCE {
+    first   BOOLEAN,
+    second  ServCellIndex
+}
+
+-- deliberately unsupported, to check the compiler reports rather than miscompiles
+Unsupported-1 ::= SEQUENCE {
+    a  BOOLEAN,
+    b  BOOLEAN  OPTIONAL
+}
+
+Unsupported-2 ::= SEQUENCE OF Alpha
+
+END

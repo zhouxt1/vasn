@@ -1,0 +1,10 @@
+SET-Auto DEFINITIONS AUTOMATIC TAGS ::=
+
+BEGIN
+
+-- automatic tagging (X.680 25.3): [0] [1] [2] in textual order, so the SET is
+-- the SEQUENCE as written
+Textual ::= SET { x OCTET STRING (SIZE (1)), y BOOLEAN, z INTEGER (0..3) }
+AnyFlags ::= SET OF BOOLEAN
+
+END

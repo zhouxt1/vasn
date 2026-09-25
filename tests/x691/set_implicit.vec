@@ -1,0 +1,12 @@
+# Hand-derived from X.691 21, 22.2, 19; see tests/x691/README.md.
+accept ByTag d0 {"a":5,"b":true,"c":null}  # [1] b, [2] c (no bits), [3] a
+accept ByUniversal 5560 {"x":"AB","y":false,"z":2}  # y (UNIVERSAL 1), z (2), x (4)
+accept Opt 40 {"q":true}  # sorted q [0], p [5]: the preamble bit is p's, 0; then q
+accept Opt a0 {"p":true,"q":false}  # p present: 1, q 0, p 1
+accept Flags a0 [true,false]  # as SEQUENCE (SIZE (0..3)) OF: 2-bit count
+
+# asn1c re-encodes a SET OF with its elements sorted: CANONICAL-PER's rule
+# (X.691 22.1). In BASIC-PER (22.2) a SET OF is encoded as a SEQUENCE OF, and
+# a SET OF value being unordered, any order encodes it. Its decoding agrees
+# with ours; only the re-encoding differs. Not a deviation from X.691.
+deviates asn1c Flags

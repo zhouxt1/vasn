@@ -1,0 +1,23 @@
+STRING-Tests DEFINITIONS AUTOMATIC TAGS ::=
+
+BEGIN
+
+-- X.691 30.5: a known-multiplier string is b bits a character, b from the
+-- effective alphabet's size N (30.5.2); a character is its code if every
+-- code fits in b bits, else its index in the sorted alphabet (30.5.4).
+
+Ia5 ::= IA5String (SIZE (0..8))
+Num ::= NumericString (SIZE (1..4))
+Prn ::= PrintableString (SIZE (2))
+Vis ::= VisibleString (FROM ("A".."F")) (SIZE (1..3))
+Hex ::= IA5String (FROM ("0".."9" | "A".."F"))
+Low ::= IA5String (FROM ("a".."d"))
+One ::= IA5String (FROM ("x")) (SIZE (3))
+ExtStr ::= IA5String (SIZE (1..4, ...))
+
+-- 30.6: UTF8String is its UTF-8 octets with a length in octets; no
+-- constraint on it is PER-visible (10.3.7)
+Utf ::= UTF8String
+UtfSized ::= UTF8String (SIZE (1..4))
+
+END

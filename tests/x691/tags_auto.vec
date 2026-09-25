@@ -1,0 +1,11 @@
+# Hand-derived from X.691 23 and X.680 29.2; see tests/x691/README.md.
+accept Textual a0 {"b":true}  # automatic: [0] [1] [2] in textual order, b is 10
+accept! NotAutomatic 20 {"b":true}  # t is tagged, so no automatic tagging: b (U1) s (U4) t ([0]), b is 00. pycrate, asn1c: see below
+accept! NotAutomatic 4000 {"s":""}  # s is 01, then length 0
+accept! NotAutomatic a0 {"t":true}  # t is 10
+
+# NotAutomatic's canonical order b s t is a 3-cycle of the textual s t b:
+# pycrate keeps the textual order, and asn1c's swapped maps (tags_implicit.vec)
+# misplace it.
+deviates pycrate NotAutomatic
+deviates asn1c NotAutomatic

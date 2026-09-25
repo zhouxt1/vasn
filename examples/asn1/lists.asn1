@@ -1,0 +1,72 @@
+LIST-Definitions DEFINITIONS AUTOMATIC TAGS ::=
+
+BEGIN
+
+Colour ::= ENUMERATED { red, green, blue }
+
+-- SEQUENCE OF with a constrained size: length determinant, then the elements
+ColourList ::= SEQUENCE (SIZE(1..8)) OF Colour
+
+-- fixed size: no length determinant at all
+Triple ::= SEQUENCE (SIZE(3)) OF Colour
+
+-- BIT STRING and OCTET STRING are the same shape
+Mask ::= BIT STRING (SIZE(10))
+Key ::= OCTET STRING (SIZE(4))
+VarBits ::= BIT STRING (SIZE(0..16))
+
+-- a SEQUENCE holding lists: the exec value has Vec fields, the spec value Seq
+Packet ::= SEQUENCE {
+    id       INTEGER (0..255),
+    payload  Key,
+    colours  ColourList,
+    extra    Mask          OPTIONAL
+}
+
+-- Lists whose elements have a spec value of their own: the list's view maps
+-- each element through the element's view.
+Nibble ::= BIT STRING (SIZE(4))
+NibbleList ::= SEQUENCE (SIZE(1..2)) OF Nibble
+
+-- a list of lists, fixed size
+Grid ::= SEQUENCE (SIZE(2)) OF ColourList
+
+-- a list of SEQUENCEs that hold a list
+Tagged ::= SEQUENCE {
+    tag   BOOLEAN,
+    bits  VarBits
+}
+TaggedList ::= SEQUENCE (SIZE(0..3)) OF Tagged
+
+-- a list of an extensible CHOICE, whose `Unknown` carries octets
+Alt ::= CHOICE {
+    a  BOOLEAN,
+    ...
+}
+AltList ::= SEQUENCE (SIZE(1..2)) OF Alt
+
+-- No size constraint: a general length determinant in octets, fragmenting
+-- at 16K: the same format an open type rides on.
+Blob ::= OCTET STRING
+
+-- Strings written inline are hoisted to named types. CONTAINING is kept as
+-- raw octets for now, as in VUPER.
+Holder ::= SEQUENCE {
+    tag    BOOLEAN,
+    data   OCTET STRING,
+    inner  OCTET STRING (CONTAINING Key)  OPTIONAL,
+    bits   BIT STRING (SIZE(3))
+}
+
+-- X.683 parameterisation, expanded into one named instance per argument.
+SetupRelease { ElementTypeParam } ::= CHOICE {
+    release  NULL,
+    setup    ElementTypeParam
+}
+
+Cfg ::= SEQUENCE {
+    a  SetupRelease { Key }     OPTIONAL,
+    b  SetupRelease { Colour }
+}
+
+END

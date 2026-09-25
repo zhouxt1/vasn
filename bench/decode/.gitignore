@@ -1,0 +1,17 @@
+nr/
+nr.new/
+corpus/
+target/
+results_*.txt
+asn1c/obj/
+asn1c/dbg/
+rasn/tool/
+rasn/src/nr_rasn.rs
+vuper/_build/
+vuper/vbench
+vuper/vbench_ul
+VUPER/
+*.log
+nr-verify/
+!results_shield.txt
+inline/

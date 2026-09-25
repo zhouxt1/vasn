@@ -1,0 +1,72 @@
+EXT-Definitions DEFINITIONS AUTOMATIC TAGS ::=
+
+BEGIN
+
+Ext ::= SEQUENCE {
+    a  BOOLEAN,
+    ...,
+    b  INTEGER (0..255),
+    c  BOOLEAN
+}
+
+-- Extensible with nothing after the marker: room reserved for a later
+-- version, which is how ETSI ITS and 3GPP mark most of their types.
+Room ::= SEQUENCE {
+    x  INTEGER (0..15),
+    y  BOOLEAN OPTIONAL,
+    ...
+}
+
+-- X.691 19.9: a `[[ ]]` group is one extension addition, not one per field.
+-- Its content is an ordinary sequence (a preamble for the OPTIONAL
+-- component, no extension bit) wrapped in a single open type.
+Grouped ::= SEQUENCE {
+    n  INTEGER (0..3),
+    ...,
+    p  BOOLEAN,
+    [[ q  INTEGER (0..15),
+       r  BOOLEAN OPTIONAL ]]
+}
+
+-- A single extension addition: the additions chain is one link, with no pair
+-- above it, which is a different code path from two or more.
+One ::= SEQUENCE {
+    k  BOOLEAN,
+    ...,
+    v  INTEGER (0..15)
+}
+
+-- A list in the root: the root's encoder is emitted over this struct, since
+-- a `Vec` field cannot be copied out into a separate root value.
+Listed ::= SEQUENCE {
+    ids  SEQUENCE (SIZE (1..4)) OF INTEGER (0..7),
+    tag  BOOLEAN OPTIONAL,
+    ...,
+    more BOOLEAN
+}
+
+-- The same with nothing after the marker.
+RoomList ::= SEQUENCE {
+    ids  SEQUENCE (SIZE (0..3)) OF BOOLEAN,
+    ...
+}
+
+-- Lists in the additions: one on its own, one inside a `[[ ]]` group.
+Carrier ::= SEQUENCE {
+    a   BOOLEAN,
+    ...,
+    xs  SEQUENCE (SIZE (1..2)) OF INTEGER (0..3),
+    [[ ys  SEQUENCE (SIZE (0..1)) OF BOOLEAN,
+       z   BOOLEAN ]]
+}
+
+-- Every component of the group OPTIONAL: present-but-empty is not an encoding
+-- of anything (19.9), so the group's format excludes it.
+AllOpt ::= SEQUENCE {
+    k  BOOLEAN,
+    ...,
+    [[ u  BOOLEAN OPTIONAL,
+       v  INTEGER (0..3) OPTIONAL ]]
+}
+
+END

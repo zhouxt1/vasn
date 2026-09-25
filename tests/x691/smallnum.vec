@@ -1,0 +1,10 @@
+# Hand-derived from X.691 11.6, 14.3, 23.8; see tests/x691/README.md.
+accept BigChoice bf0180 {"e63":true}  # index 63: the short form, 0 and 6 bits
+accept BigChoice c050004000 {"e64":false}  # index 64: 1, a one-octet length, one octet 64 (11.6.2)
+accept BigChoice c051406000 {"e69":true}  # index 69, the last
+reject! BigChoice c041406000  # index 5 in the long form: 11.6.1 requires the short form. pycrate, asn1c accept
+accept BigEnum c05000 "v64"  # extension value 64: the long form
+accept BigEnum 83 "v3"  # extension value 3: the short form
+accept BigEnum 40 "r1"  # a root value
+reject! BigEnum c05180  # extension value 70: a newer version's value, which an ENUMERATED of this schema cannot hold, so ours rejects it (emit/enum_ext.rs); pycrate keeps it as "_ext_70"
+accept! Small c059004000 {"?unknown-extension":{"index":100,"octets":"00"}}  # a newer peer's alternative 100: 1, the long form of 100, an open type. Ours keeps it as Unknown; JER has no form for it, so the references print their own

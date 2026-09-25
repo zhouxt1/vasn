@@ -1,0 +1,31 @@
+# Hand-derived from X.691 16.6, 17.3, 20.4, 11.9; see tests/x691/README.md.
+accept ExtOctets 1560 "AB"  # size 1 in the root: bit 0, 2-bit length n - 1
+accept ExtOctets 6020406080 "01020304"  # size 4 in the root
+accept! ExtOctets 82808101820280 "0102030405"  # size 5: bit 1, a general length, the octets
+accept! ExtOctets 8000 ""  # size 0, below the root: bit 1, length 0
+reject! ExtOctets 8155e680  # size 2 is in the root, so never an extension (10.4.3). pycrate, asn1c accept
+accept! ExtBits 5500 {"value":"AA","length":8}  # size 8, the root: bit 0 and 8 bits, no length (16.9); JER variable, X.697 7.2.2 g
+accept! ExtBits 81d0 {"value":"A0","length":3}  # size 3: bit 1, length 3, the bits
+accept ExtList 50 [true,false]  # size 2 in the root: bit 0, 2-bit count
+accept ExtList 81e0 [true,true,false]  # size 3: bit 1, general count
+accept SemiExtOctets 0155e680 "ABCD"  # size 2 in the root (2..MAX): bit 0, general length n
+accept! SemiExtOctets 80f780 "EF"  # size 1 below it: bit 1, length 1
+accept SemiList 031c [0,1,3]  # SIZE (1..MAX): the general count holds n itself, not n - lb
+reject! SemiList 00  # 0 items, below SIZE (1..MAX)
+accept AnyBits 00 {"value":"","length":0}  # unconstrained: length 0
+accept AnyBits 09c080 {"value":"C080","length":9}  # 9 bits
+accept AnyList 0240 [false,true]  # unconstrained SEQUENCE OF
+
+# asn1c -c rejects every size outside an extensible root, which 16.6, 17.3 and
+# 20.4 exist to carry (as for INTEGER). And asn1c accepts no items for
+# SIZE (1..MAX), even with -c.
+#
+# pycrate prints ExtBits, BIT STRING (SIZE (8, ...)), in JER's fixed-size
+# form ("aa"), which for a 3-bit value drops the length ("a0"). X.697 7.2.2 g:
+# an extensible size constraint is not JER-visible, so the variable form
+# {"value", "length"} applies. Its re-encodings match ours: a printer matter.
+deviates pycrate ExtBits
+# asn1c decodes SemiExtOctets (SIZE (2..MAX, ...)) of size 1 right, sent with
+# the extension bit 1, but re-encodes it with the bit 0: X.691 17.3 sets it to
+# 1 when the size is outside the root. Its encoder, not its decoder.
+deviates asn1c SemiExtOctets

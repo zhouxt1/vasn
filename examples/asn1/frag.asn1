@@ -1,0 +1,30 @@
+FRAG-Definitions DEFINITIONS AUTOMATIC TAGS ::=
+
+BEGIN
+
+-- X.691 11.9.4.2: a SIZE whose upper bound is 64K or more is encoded as if
+-- unconstrained. The length holds `n`, not `n - lb`, in the general
+-- determinant, and fragments from 16K units on (11.9.3.8), counting bits,
+-- octets or components (11.9.3.8.2 b, a, c).
+
+BigBits ::= BIT STRING (SIZE(1..65536))
+BigOctets ::= OCTET STRING (SIZE(0..100000))
+BigList ::= SEQUENCE (SIZE(1..65536)) OF INTEGER (0..7)
+
+-- 11.9.1: only a fixed size below 64K has no length determinant
+FixedBig ::= BIT STRING (SIZE(65536))
+
+-- elements with a spec value of their own
+Nibble ::= BIT STRING (SIZE(4))
+NibbleList ::= SEQUENCE (SIZE(1..65536)) OF Nibble
+
+-- the shape of NR's BandCombinationList: extensible elements, which a newer
+-- peer can extend, so the list's flag comes from them
+Ext ::= SEQUENCE {
+    a  BOOLEAN,
+    ...,
+    [[ b  BOOLEAN OPTIONAL ]]
+}
+ExtList ::= SEQUENCE (SIZE(1..65536)) OF Ext
+
+END

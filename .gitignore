@@ -1,0 +1,22 @@
+# Verus toolchain (1.6 GB prebuilt, fetched by tools/get-verus.sh)
+tools/verus-x86-linux/
+tools/*.zip
+# asn1c, built by tools/get-asn1c.sh
+tools/asn1c/
+tools/asn1c-src/
+
+# build outputs
+target/
+*.rlib
+*.rmeta
+*.vir
+
+# Verus dumps these next to the crate when a type name gets long
+*.long-type-*.txt
+
+# local only: working trees of the private repository's other directories
+build/
+generated/
+difftest/
+proto/
+5GShield_Dataset.zip

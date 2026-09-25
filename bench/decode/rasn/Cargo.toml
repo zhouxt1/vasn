@@ -1,0 +1,14 @@
+[package]
+name = "bench_rasn"
+version = "0.1.0"
+edition = "2021"
+description = "rasn's DL-DCCH-Message decoder on a directory of UPER messages"
+
+[dependencies]
+rasn = "=0.28.14"
+
+[profile.release]
+codegen-units = 1
+
+# not part of the repository's other workspaces
+[workspace]

@@ -1,0 +1,14 @@
+SET-Implicit DEFINITIONS IMPLICIT TAGS ::=
+
+BEGIN
+
+-- X.691 21: a SET is encoded as a SEQUENCE of its root components sorted into
+-- canonical tag order (X.680 8.6); 22.2: a SET OF, in BASIC-PER, as a
+-- SEQUENCE OF. vuperc used to reject SET and SET OF.
+
+ByTag ::= SET { a [3] INTEGER (0..7), b [1] BOOLEAN, c [2] NULL }
+ByUniversal ::= SET { x OCTET STRING (SIZE (1)), y BOOLEAN, z INTEGER (0..3) }
+Opt ::= SET { p [5] BOOLEAN OPTIONAL, q [0] BOOLEAN }
+Flags ::= SET SIZE (0..3) OF BOOLEAN
+
+END

@@ -1,0 +1,31 @@
+# Hand-derived from X.691 11.3, 11.4, 11.7, 11.8, 13; see tests/x691/README.md.
+accept Unconstrained 0100 0  # 11.4 minimal 2's complement: one octet
+accept Unconstrained 017f 127  # 11.4 minimal 2's complement: one octet
+accept Unconstrained 020080 128  # 11.4 minimal 2's complement: 0080: 128 needs two
+accept Unconstrained 01ff -1  # 11.4 minimal 2's complement: ff
+accept Unconstrained 0180 -128  # 11.4 minimal 2's complement: 80
+accept Unconstrained 02ff7f -129  # 11.4 minimal 2's complement: ff7f
+accept Unconstrained 087fffffffffffffff 9223372036854775807  # 11.4 minimal 2's complement: eight octets
+accept Unconstrained 088000000000000000 -9223372036854775808  # 11.4 minimal 2's complement: eight octets
+reject! Unconstrained 020001  # 0001: nine leading zero bits, not minimal (11.4.6). pycrate, asn1c accept
+reject! Unconstrained 02ffff  # ffff: nine leading one bits, not minimal (11.4.6). pycrate, asn1c accept
+accept Semi 0100 -5  # n - lb = 0, one octet
+accept Semi 01ff 250  # n - lb = 255, one octet
+accept Semi 020100 251  # n - lb = 256, two octets
+reject! Semi 0200ff  # 00ff: a leading zero octet (11.3.6). pycrate, asn1c accept
+accept Ext 50 5  # in the root: bit 0, then 3 bits
+accept! Ext 808400 8  # outside: bit 1, then unconstrained. asn1c -c: "constraint failed"
+accept! Ext 80ff80 -1  # outside, negative. asn1c -c: "constraint failed"
+reject! Ext 808180  # 3 is in the root, so it is never sent as an extension (10.4.3). pycrate, asn1c accept
+accept ExtOne 00 5  # the root is one value: bit 0 and nothing else (13.2.1)
+accept! ExtOne 808300 6  # outside. asn1c -c: "constraint failed"
+accept ExtSemi 008180 3  # in the root: bit 0, then semi-constrained
+accept! ExtSemi 80ff80 -1  # below the root: bit 1, then unconstrained. asn1c: 255
+accept Rec 9017f6a0 {"a":2,"b":-300}  # b present, a in its root, b in two octets
+
+# asn1c's -c checks an extensible constraint's root only, so it rejects every
+# value outside it, which X.691 13.1 exists to carry. And for a semi-
+# constrained root (0..MAX, ...) asn1c decodes the extension branch as the
+# root's unsigned form (80ff80 as 255) where 13.1 makes it an unconstrained,
+# 2's-complement integer (11.8): -1.
+deviates asn1c ExtSemi

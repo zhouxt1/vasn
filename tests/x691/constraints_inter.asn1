@@ -1,0 +1,21 @@
+CONSTRAINT-Inter DEFINITIONS AUTOMATIC TAGS ::=
+
+BEGIN
+
+-- Intersections and INCLUDES (X.680 50, 51.3). pycrate 0.7.11 cannot parse
+-- `^`, INTERSECTION or INCLUDES, so these are checked against asn1c.
+
+-- intersections (pycrate cannot parse these; asn1c can)
+Inter ::= INTEGER (0..7 ^ 2..3)
+InterWord ::= INTEGER (0..7 INTERSECTION 4..MAX)
+
+Sub ::= INTEGER (0..7)
+Includes ::= INTEGER (INCLUDES Sub | 12)
+
+SizeInter ::= BIT STRING (SIZE (1..8) ^ SIZE (4..16))
+
+-- a union of sizes (pycrate cannot parse it): the sizes some value has,
+-- 10.3.10, so 1..8
+SizeUnion ::= OCTET STRING (SIZE (1..4) | SIZE (8))
+
+END

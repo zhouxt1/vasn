@@ -1,0 +1,15 @@
+# Hand-derived from X.691; see tests/x691/README.md for the format.
+accept Sub e0 7  # Base (0..7): 3 bits, not Base's 8
+accept Union 90 9  # (0..7 | 9) is 0..9: 4 bits
+reject Union a0  # 10 is outside 0..9
+accept TwoValues 80 1  # (0 | 1) is 0..1: 1 bit
+accept Except 60 3  # EXCEPT ignored: 0..7, and 3 encodes (10.3.21)
+accept Serial a0 20  # (0..100) (10..20) is 10..20
+accept Contained a0 5  # INTEGER (Sub) is 0..7
+accept Refs c0 4  # (1..maxLen) with maxLen 4
+accept SizeOfRef d5d5d580 "ABABAB"  # Octets8 (SIZE (2..3)): 1 bit
+accept Items 8e [1,6]  # SIZE (0..3) OF Sub: 2-bit count, 3-bit items
+accept Pair 0102 [1,2]  # SIZE (2): no length (11.9.4.1, range 1)
+accept Rec f412100e0c {"y":1,"z":7,"w":2,"s":"09080706"}  # y 1 bit, z and w 3 bits, s fixed at 4 octets
+accept Flag 80 true  # BOOLEAN (TRUE) is a BOOLEAN: 1 bit
+accept Octets8 e020406080a0c0e100 "0102030405060708"  # SIZE (1..8): 3-bit length 8 - 1
