@@ -1,9 +1,9 @@
 // SEQUENCE OF, BIT STRING and OCTET STRING on the wire.
 
 use vstd::prelude::*;
-use vuperx::cursor::*;
-use vuperx::opt::Null;
-use vuper_examples::lists::*;
+use vasn::uper::cursor::*;
+use vasn::uper::opt::Null;
+use vasn_examples::lists::*;
 
 verus! {
 

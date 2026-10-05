@@ -1,0 +1,9 @@
+# examples/asn1/ext.asn1: random values against pycrate, asn1c and rasn (no hand vectors;
+# examples/src/bin/ext.rs checks encodings by hand). rasn 0.28 rejects a SEQUENCE whose
+# mandatory extension addition is absent and misreads extension groups (tests/x691/README.md).
+deviates rasn AllOpt
+deviates rasn Carrier
+deviates rasn Ext
+deviates rasn Grouped
+deviates rasn Listed
+deviates rasn One

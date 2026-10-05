@@ -3,7 +3,7 @@
 the same format (`name bits hex`), so the two can be diffed:
 
     python3 tools/frag_pycrate.py > a.txt
-    cargo run -q --release -p vuper-examples --bin frag -- --cases > b.txt
+    cargo run -q --release -p vasn-examples --bin frag -- --cases > b.txt
     diff a.txt b.txt
 
 The values are defined here and in frag.rs by the same rules (see CASES).

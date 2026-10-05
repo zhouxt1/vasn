@@ -1,0 +1,8 @@
+# tests/x691/wide.asn1 in UNALIGNED PER: random values only, against pycrate, asn1c
+# and rasn. The reference deviations below were found by those checks.
+deviates asn1c E300
+deviates asn1c E300x
+deviates asn1c W
+deviates rasn E300
+deviates rasn E300x
+deviates rasn W

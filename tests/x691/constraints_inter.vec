@@ -3,4 +3,10 @@ accept Inter 80 3  # (0..7 ^ 2..3) is 2..3: 1 bit holding 3 - 2
 accept InterWord c0 7  # (0..7 INTERSECTION 4..MAX) is 4..7
 accept Includes c0 12  # (INCLUDES Sub | 12) is 0..12
 accept SizeInter 14 {"value":"A0","length":4}  # SIZE (4..8): 3-bit length 4 - 4
-accept SizeUnion e020406080a0c0e100 "0102030405060708"  # SIZE (1..4) | SIZE (8) is 1..8: 3-bit length 8 - 1
+accept! SizeUnion e020406080a0c0e100 "0102030405060708"  # SIZE (1..4) | SIZE (8) is 1..8: 3-bit length 8 - 1
+
+# rasn-compiler 0.16 makes INCLUDES Sub | 12 the single value 12, and SIZE
+# (1..4) | SIZE (8) a value constraint 1..8 on the OCTET STRING, so no size
+# constraint at all
+deviates rasn Includes
+deviates rasn SizeUnion

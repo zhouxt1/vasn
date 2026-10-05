@@ -1,10 +1,10 @@
 #!/usr/bin/env python3
-"""Check vuperc's codec for a schema against pycrate and asn1c.
+"""Check vasnc's codec for a schema against pycrate and asn1c.
 
     tools/xcheck.py SCHEMA.asn1 [-n N] [--seed S] [--types A,B] [--vectors FILE]
                     [--containing octets|decode]
 
-Builds three decoders for SCHEMA: ours (vuperc and its `--driver`, compiled
+Builds three decoders for SCHEMA: ours (vasnc and its `--driver`, compiled
 with Verus, --no-verify: the per-type verification is a separate run), asn1c's
 converter-example (tools/get-asn1c.sh), and pycrate's generated module. Then:
 
@@ -15,6 +15,8 @@ converter-example (tools/get-asn1c.sh), and pycrate's generated module. Then:
 
       accept TYPE HEX JER     every decoder gives this value, and ours re-encodes to HEX
       reject TYPE HEX         every decoder rejects it
+      deviates-encode TOOL TYPE   TOOL decodes TYPE as X.691 does but encodes it
+                              otherwise: its re-encodings are not compared
       deviates TOOL TYPE      TOOL is known to deviate from X.691 on TYPE: the
                               random-value checks leave TOOL out for TYPE
 
@@ -22,7 +24,7 @@ converter-example (tools/get-asn1c.sh), and pycrate's generated module. Then:
   marked in the file, `accept! ...` / `reject! ...` with a comment, and a
   disagreement there is reported but not counted as ours.
 
-`--containing` is passed to vuperc. `OCTET STRING (CONTAINING T)` is octets
+`--containing` is passed to vasnc. `OCTET STRING (CONTAINING T)` is octets
 to asn1c and a T to pycrate, so a schema that has one is checked against
 asn1c alone under `octets` (the default) and against pycrate alone under
 `decode`.
@@ -45,14 +47,25 @@ import tempfile
 
 ROOT = pathlib.Path(__file__).resolve().parent.parent
 VERUS = os.environ.get("VERUS") or shutil.which("verus") or str(ROOT / "tools/verus-x86-linux/verus")
-VUPERC = ROOT / "target/release/vuperc"
-VUPERX = ROOT / "target/verus"          # vuperx built by Verus, as crate-dir Makefiles do
+VASNC = ROOT / "target/release/vasnc"
+VASN = ROOT / "target/verus"          # vasn built by Verus, as crate-dir Makefiles do
 ASN1C = ROOT / "tools/asn1c/bin/asn1c"
+# rasn-compiler 0.16.0 (bench/decode/build.sh installs it), and the rasn it
+# generates bindings for
+RASNC = ROOT / "bench/decode/rasn/tool/bin/rasn_compiler_cli"
+RASN_VERSION = "=0.28.14"
+# one target directory for every schema's rasn driver: rasn builds once
+RASN_TARGET = ROOT / "target/xcheck/rasn-target"
+# a REAL's exact decimal can run to thousands of digits (2^32767 has 9865)
+sys.set_int_max_str_digits(0)
 sys.path[:0] = glob.glob("/usr/local/lib/python3*/dist-packages/pycrate-*.egg")
 
 
+# which PER variant every tool is asked for: UNALIGNED, the only one here
+VARIANT = "uper"
+
 # a wide ENUMERATED or CHOICE compiles to a deep if/else chain, which
-# overflows rustc's default stack (as vuperc's generated Makefiles note)
+# overflows rustc's default stack (as vasnc's generated Makefiles note)
 os.environ.setdefault("RUST_MIN_STACK", "2000000000")
 
 
@@ -66,29 +79,41 @@ def sh(cmd, **kw):
 # ------------------------------------------------------------------ builds
 
 def build_tools():
-    """vuperc with cargo, and vuperx with Verus: the generated module imports
-    vuperx's .vir, which only Verus writes."""
-    sh(["cargo", "build", "--release", "-q", "-p", "vuperc"], cwd=ROOT)
-    rlib = VUPERX / "libvuperx.rlib"
-    srcs = list((ROOT / "vuperx/src").glob("*.rs"))
-    if not rlib.exists() or any(f.stat().st_mtime > rlib.stat().st_mtime for f in srcs):
-        VUPERX.mkdir(parents=True, exist_ok=True)
-        sh([VERUS, "--crate-type=lib", "--crate-name", "vuperx", "--compile", "-C", "opt-level=3",
-            "--export", VUPERX / "vuperx.vir", ROOT / "vuperx/src/lib.rs", "-o", rlib])
+    """vasnc with cargo, and vbits, vsimd and vasn with Verus: the generated
+    module imports their .vir, which only Verus writes. vasn is rebuilt
+    whenever vbits or vsimd is, since an rlib built against another build of
+    either is refused."""
+    sh(["cargo", "build", "--release", "-q", "-p", "vasnc"], cwd=ROOT)
+    VASN.mkdir(parents=True, exist_ok=True)
+    rebuilt = False
+    for crate, deps in (("vbits", []), ("vsimd", []), ("vasn", ["vbits", "vsimd"])):
+        rlib = VASN / f"lib{crate}.rlib"
+        srcs = list((ROOT / crate / "src").rglob("*.rs"))
+        if rebuilt or not rlib.exists() or any(f.stat().st_mtime > rlib.stat().st_mtime for f in srcs):
+            imports = [a for d in deps for a in
+                       ("--import", f"{d}={VASN}/{d}.vir", "--extern", f"{d}={VASN}/lib{d}.rlib")]
+            silent = ["--triggers-mode", "silent"] if crate == "vsimd" else []
+            sh([VERUS, "--crate-type=lib", "--crate-name", crate, "--compile", "-C", "opt-level=3",
+                *silent, *imports, "--export", VASN / f"{crate}.vir", ROOT / crate / "src/lib.rs", "-o", rlib])
+            rebuilt = True
 
 
-def vuperx_args():
-    return ["--import", f"vuperx={VUPERX}/vuperx.vir", "--extern", f"vuperx={VUPERX}/libvuperx.rlib"]
+def vasn_args():
+    """What a crate built on vasn passes Verus. vbits is imported too, since
+    vasn's specs unfold to it, and -L lets rustc find its rlib behind vasn's."""
+    return ["-L", VASN, "--import", f"vbits={VASN}/vbits.vir", "--import", f"vsimd={VASN}/vsimd.vir",
+            "--import", f"vasn={VASN}/vasn.vir", "--extern", f"vasn={VASN}/libvasn.rlib"]
 
 
 def build_ours(schema, d, containing):
     rs, drv = d / "m.rs", d / "driver.rs"
-    out = subprocess.run([VUPERC, schema, rs, "--driver", drv, "--containing", containing],
+    aper = ["--aper"] if VARIANT == "aper" else []
+    out = subprocess.run([VASNC, schema, rs, "--driver", drv, "--containing", containing, *aper],
                          capture_output=True, text=True)
     skipped = [l.strip() for l in out.stderr.splitlines() if l.strip().startswith("skipped")]
     if out.returncode != 0:
         sys.exit(out.stderr)
-    sh([VERUS, "--compile", "-C", "opt-level=1", "--no-verify", *vuperx_args(),
+    sh([VERUS, "--compile", "-C", "opt-level=1", "--no-verify", *vasn_args(),
         drv, "-o", d / "driver"])
     return d / "driver", skipped
 
@@ -97,10 +122,107 @@ def build_asn1c(schema, d):
     a = d / "asn1c"
     shutil.rmtree(a, ignore_errors=True)
     a.mkdir()
+    other = "-no-gen-UPER" if VARIANT == "aper" else "-no-gen-APER"
     sh([ASN1C, "-pdu=all", "-fcompound-names", "-no-gen-BER", "-no-gen-XER", "-no-gen-OER",
-        "-no-gen-APER", schema], cwd=a)
+        other, schema], cwd=a)
     sh(["make", "-s", "-f", "converter-example.mk", f"-j{os.cpu_count()}"], cwd=a)
     return a / "converter-example"
+
+
+RASN_MAIN = r"""// Generated by tools/xcheck.py: rasn's PER codec for every type of one
+// schema, by ASN.1 name.
+//   driver dec TYPE < hex-lines   per line: `ok REENC JER`, or `err WHY`
+#[allow(warnings, clippy::all)]
+mod m;
+use std::io::BufRead;
+
+fn hex(b: &[u8]) -> String { b.iter().map(|x| format!("{x:02x}")).collect() }
+
+fn run<T: rasn::Decode + rasn::Encode>() {
+    for line in std::io::stdin().lock().lines() {
+        let line = line.unwrap();
+        let line = line.trim();
+        if line.is_empty() { continue; }
+        let b: Option<Vec<u8>> = (0..line.len()).step_by(2)
+            .map(|i| line.get(i..i + 2).and_then(|x| u8::from_str_radix(x, 16).ok())).collect();
+        let Some(b) = b else { println!("err not hex"); continue };
+        match rasn::PERV::decode::<T>(&b) {
+            Ok(v) => {
+                let e = rasn::PERV::encode(&v).map(|e| hex(&e)).unwrap_or_else(|_| "-".into());
+                match rasn::jer::encode(&v) {
+                    Ok(j) => println!("ok {e} {}", j.replace('\n', " ")),
+                    Err(err) => println!("err JER: {}", err.to_string().replace('\n', " ")),
+                }
+            }
+            Err(err) => println!("err {}", err.to_string().replace('\n', " ")),
+        }
+    }
+}
+
+fn main() {
+    let args: Vec<String> = std::env::args().collect();
+    match (args.get(1).map(String::as_str), args.get(2).map(String::as_str)) {
+        (Some("types"), _) => { for t in [TYPES] { println!("{t}"); } }
+ARMS        _ => { eprintln!("usage: driver types | dec TYPE"); std::process::exit(2); }
+    }
+}
+"""
+
+
+def build_rasn(schema, d, asn_types):
+    """rasn-compiler's bindings for the schema, and a driver over them. A type
+    is looked up by its ASN.1 name less its hyphens, which is how
+    rasn-compiler names one; a type it does not have is left out."""
+    r = d / "rasn"
+    shutil.rmtree(r / "src", ignore_errors=True)
+    (r / "src").mkdir(parents=True)
+    out = subprocess.run([RASNC, "-m", schema, "-o", r / "src/m.rs"], capture_output=True, text=True)
+    code = (r / "src/m.rs").read_text() if (r / "src/m.rs").exists() else ""
+    if not code.strip():
+        raise SystemExit((out.stderr or out.stdout or "rasn-compiler wrote nothing").strip()[-300:])
+    # rasn-compiler makes a REAL an f64 and still derives Eq and Hash on what
+    # holds one, which f64 has neither of; nothing here needs them unless a
+    # SET OF does
+    if "f64" in code and "SetOf" not in code:
+        code = code.replace(" , Eq , Hash)", ")")
+        (r / "src/m.rs").write_text(code)
+    # the generated items, per module
+    names = {}
+    for mod, body in re.findall(r"pub mod (\w+) \{(.*?)(?=pub mod \w+ \{|\Z)", code, re.S):
+        for n in re.findall(r"pub (?:struct|enum|type) (\w+)", body):
+            names.setdefault(n, mod)
+    have = {}
+    for t in asn_types:
+        rn = t.replace("-", "")
+        rn = rn[0].upper() + rn[1:]
+        if rn in names:
+            have[t] = f"m::{names[rn]}::{rn}"
+    arms = "".join(f'        (Some("dec"), Some({json.dumps(t)})) => run::<{p}>(),\n' for t, p in have.items())
+    (r / "src/main.rs").write_text(RASN_MAIN.replace("PERV", VARIANT).replace("[TYPES]", "[" + ", ".join(json.dumps(t) for t in have) + "]")
+                                   .replace("ARMS", arms))
+    (r / "Cargo.toml").write_text(f"""[package]
+name = "rasn_driver"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+rasn = "{RASN_VERSION}"
+
+[[bin]]
+name = "driver"
+path = "src/main.rs"
+
+[workspace]
+""")
+    RASN_TARGET.mkdir(parents=True, exist_ok=True)
+    b = subprocess.run(["cargo", "build", "--release", "--offline", "-q", "--target-dir", RASN_TARGET],
+                       cwd=r, capture_output=True, text=True)
+    if b.returncode != 0:
+        errs = [l for l in b.stderr.splitlines() if l.startswith("error")]
+        raise SystemExit(f"rasn-compiler's bindings do not compile: {(errs or [b.stderr.strip()[-200:]])[0][:200]}")
+    exe = r / "driver"
+    shutil.copy(RASN_TARGET / "release/driver", exe)
+    return exe
 
 
 def build_pycrate(schema, d):
@@ -166,6 +288,9 @@ class Pycrate:
         t = self.type(ty)
         try:
             with contextlib.redirect_stdout(io.StringIO()):
+                if VARIANT == "aper":
+                    t.from_aper(bytes.fromhex(hx))
+                    return ("accept", json.loads(t.to_jer()), t.to_aper().hex())
                 t.from_uper(bytes.fromhex(hx))
                 return ("accept", json.loads(t.to_jer()), t.to_uper().hex())
         except Exception as e:  # pycrate raises on any decoding error
@@ -191,10 +316,38 @@ def splice_groups(j):
     return j
 
 
+class Rasn:
+    def __init__(self, exe):
+        self.exe = exe
+        self.have = set(sh([exe, "types"]).split())
+
+    def knows(self, ty):
+        return ty in self.have
+
+    def dec(self, ty, hx, check=False):
+        r = subprocess.run([self.exe, "dec", ty], input=hx + "\n", capture_output=True, text=True)
+        # a panic (rasn's `todo!()`s) prints to stderr and nothing to stdout
+        why = " ".join(l for l in r.stderr.splitlines() if l and not l.startswith("note:"))
+        line = (r.stdout.strip().splitlines() or ["err " + (why[-160:] or "no output")])[0]
+        if line.startswith("err"):
+            return ("reject", line[4:][:160])
+        _, re_, j = line.split(" ", 2)
+        try:
+            return ("accept", json.loads(j), re_)
+        except json.JSONDecodeError as e:
+            return ("reject", f"JER not JSON: {e}")
+
+
 class Asn1c:
     def __init__(self, exe):
         self.exe = exe
         self.pdus = set(subprocess.run([exe, "-p", "list"], capture_output=True, text=True).stdout.split())
+        # asn1c's converter drops a codec that some type of the module lacks:
+        # it has no APER for SET (`SET_decode_aper` is null), and then refuses
+        # -iaper for the whole module
+        probe = subprocess.run([exe, f"-i{VARIANT}", "/dev/null"], capture_output=True, text=True)
+        if "improper format selector" in probe.stderr:
+            raise SystemExit(f"its converter has no {VARIANT.upper()} for this module (asn1c implements none for SET)")
 
     def knows(self, ty):
         return ty.replace("-", "_") in self.pdus
@@ -204,17 +357,23 @@ class Asn1c:
         use it; random values do not, since they come from the effective
         (PER-visible) constraint, which may allow values the type does not
         (X.691 10.3.10: SIZE (1..4 | 8) is encoded as SIZE (1..8))."""
-        with tempfile.NamedTemporaryFile(suffix=".uper") as f:
+        v = VARIANT
+        with tempfile.NamedTemporaryFile(suffix="." + v) as f:
             f.write(bytes.fromhex(hx))
             f.flush()
             pdu = ty.replace("-", "_")
-            j = subprocess.run([self.exe, "-p", pdu, "-1"] + (["-c"] if check else []) + ["-iuper", "-ojer", f.name],
+            j = subprocess.run([self.exe, "-p", pdu, "-1"] + (["-c"] if check else []) + [f"-i{v}", "-ojer", f.name],
                                capture_output=True, text=True, errors="replace")
             if j.returncode != 0 or not j.stdout.strip():
                 return ("reject", (j.stderr.strip().splitlines() or ["?"])[-1][:160])
-            u = subprocess.run([self.exe, "-p", pdu, "-1", "-iuper", "-ouper", f.name], capture_output=True)
+            u = subprocess.run([self.exe, "-p", pdu, "-1", f"-i{v}", f"-o{v}", f.name], capture_output=True)
             try:
-                return ("accept", json.loads(j.stdout), u.stdout.hex())
+                # asn1c's JER writes control characters in a string unescaped,
+                # which JSON forbids: read them anyway
+                # and an OBJECT IDENTIFIER or RELATIVE-OID as `{ 1.2.840 }`, which
+                # is not JSON either; X.697 29, 30 make it the string "1.2.840"
+                txt = re.sub(r"\{ ([0-9]+(?:\.[0-9]+)*) \}", r'"\1"', j.stdout)
+                return ("accept", json.loads(txt, strict=False), u.stdout.hex())
             except json.JSONDecodeError as e:
                 return ("reject", f"JER not JSON: {e}")
 
@@ -232,8 +391,46 @@ def jer_eq(a, b):
     if isinstance(a, list) and isinstance(b, list):
         return len(a) == len(b) and all(jer_eq(x, y) for x, y in zip(a, b))
     if isinstance(a, str) and isinstance(b, str) and a != b:
-        return a.upper() == b.upper() and set(a) <= HEX and set(b) <= HEX
+        return (a.upper() == b.upper() and set(a) <= HEX and set(b) <= HEX) or octet_chars(a, b) or octet_chars(b, a)
+    # X.697 23.4's base-10 object, against a printer that writes every REAL
+    # as a number: the same number (whether the base survived is the
+    # re-encoding's business)
+    if isinstance(a, dict) and list(a) == ["base10Value"] and not isinstance(b, dict):
+        return jer_eq(a["base10Value"], b)
+    if isinstance(b, dict) and list(b) == ["base10Value"] and not isinstance(a, dict):
+        return jer_eq(a, b["base10Value"])
+    num = (int, float)
+    if isinstance(a, num) and isinstance(b, num) and not isinstance(a, bool) and not isinstance(b, bool) \
+            and (isinstance(a, float) or isinstance(b, float)):
+        # a REAL: one printer writes 1, another 1.0 (X.697 23.3: "a JSON
+        # number denoting the value", in any form)
+        return float(a) == float(b)
     return a == b and type(a) is type(b)
+
+
+OID = re.compile(r"[0-9]+(\.[0-9]+)*")
+
+
+def wide_arc(j):
+    """Whether a value holds an OBJECT IDENTIFIER or RELATIVE-OID with an arc
+    over 2^32 - 1 (a dotted string of numbers, X.697 29, 30)."""
+    if isinstance(j, dict):
+        return any(wide_arc(v) for v in j.values())
+    if isinstance(j, list):
+        return any(wide_arc(v) for v in j)
+    return isinstance(j, str) and OID.fullmatch(j) is not None and \
+        any(int(a) > 2**32 - 1 for a in j.split("."))
+
+
+def octet_chars(s, h):
+    """asn1c prints a string that is not known-multiplier (GeneralString and
+    the like, X.691 30.6) as the hex of its octets, where X.697 38 prints the
+    characters. The octets are what the encoding carries, so the two are
+    the same value when the hex is `s`'s octets, one character each. (The
+    re-encodings are compared exactly as well.)"""
+    if len(h) != 2 * len(s) or not set(h) <= HEX or any(ord(c) > 255 for c in s):
+        return False
+    return bytes.fromhex(h) == s.encode("latin-1")
 
 
 class Defaults:
@@ -309,8 +506,8 @@ def deviations(path):
     if path:
         for line in pathlib.Path(path).read_text().splitlines():
             w = line.split("#", 1)[0].split()
-            if len(w) == 3 and w[0] == "deviates":
-                out.add((w[1], w[2]))
+            if len(w) == 3 and w[0] in ("deviates", "deviates-encode"):
+                out.add((w[1], w[2]) if w[0] == "deviates" else ("encode", w[1], w[2]))
     return out
 
 
@@ -334,10 +531,17 @@ def check_random(ours, others, types, n, seed, report, deviates=frozenset()):
                     # draw 8, which is not a value of the type. The encoding
                     # is still X.691's; pycrate checks the full constraint.
                     report.outside()
+                elif name in ("asn1c", "rasn") and wide_arc(val) and (r[0] == "reject" or not DEFAULTS.same(ty, r[1], val)):
+                    # both hold an OBJECT IDENTIFIER's arcs in 32 bits: asn1c
+                    # (asn_oid_arc_t) cannot convert a wider one, rasn keeps
+                    # its low 32 bits
+                    report.known()
                 elif r[0] == "reject":
                     report.fail(ty, hx, f"{name} rejects our encoding: {r[1]}", val)
                 elif not DEFAULTS.same(ty, r[1], val):
                     report.fail(ty, hx, f"{name} decodes a different value", val, r[1])
+                elif r[2] != pad(hx) and ("encode", name, ty) in deviates:
+                    report.known()
                 elif r[2] != pad(hx):
                     report.fail(ty, hx, f"{name} re-encodes to {r[2]}", val)
                 else:
@@ -350,7 +554,7 @@ def check_vectors(path, ours, others, types, report):
         line = line.split(" #", 1)[0].strip()
         if not line or line.startswith("#"):
             continue
-        if line.startswith("deviates "):
+        if line.startswith("deviates"):
             continue
         kind, ty, hx, *rest = line.split(" ", 3)
         if ty not in types:
@@ -361,7 +565,8 @@ def check_vectors(path, ours, others, types, report):
         want = json.loads(rest[0]) if kind == "accept" else None
         res = {"ours": ours.dec(ty, [hx])[0]}
         for name, dec in others:
-            res[name] = dec.dec(ty, hx, check=True)
+            if dec.knows(ty):
+                res[name] = dec.dec(ty, hx, check=True)
         for name, r in res.items():
             good = (r[0] == kind) and (kind == "reject" or DEFAULTS.same(ty, r[1], want))
             if name == "ours" and kind == "accept" and good:
@@ -415,6 +620,7 @@ def main():
     ap.add_argument("--dir", help="build directory (default target/xcheck/<schema>)")
     ap.add_argument("--verify", action="store_true", help="also verify the generated module with Verus")
     ap.add_argument("--containing", choices=("octets", "decode"), default="octets")
+    ap.add_argument("--no-rasn", action="store_true", help="leave rasn out")
     a = ap.parse_args()
     schema = pathlib.Path(a.schema).resolve()
     d = pathlib.Path(a.dir or ROOT / "target/xcheck" / schema.stem).resolve()
@@ -424,7 +630,7 @@ def main():
     for s in skipped:
         print(f"note {s}")
     if a.verify:
-        r = subprocess.run([VERUS, "--crate-type=lib", "--crate-name", "xcheck", *vuperx_args(), d / "m.rs"],
+        r = subprocess.run([VERUS, "--crate-type=lib", "--crate-name", "xcheck", *vasn_args(), d / "m.rs"],
                            capture_output=True, text=True)
         res = [l for l in (r.stdout + r.stderr).splitlines() if "verification results" in l]
         print(f"verus {res[-1].split('::')[-1].strip() if res else 'failed'}")
@@ -439,12 +645,16 @@ def main():
     # schema is left out, and says why
     others = []
     refs = [("pycrate", lambda: Pycrate(build_pycrate(schema, d), module_names)),
-            ("asn1c", lambda: Asn1c(build_asn1c(schema, d)))]
+            ("asn1c", lambda: Asn1c(build_asn1c(schema, d))),
+            ("rasn", lambda: Rasn(build_rasn(schema, d, ours.types())))]
+    if a.no_rasn:
+        refs = [r for r in refs if r[0] != "rasn"]
     if "CONTAINING" in text:
-        drop = "pycrate" if a.containing == "octets" else "asn1c"
-        print(f"note CONTAINING is {'octets' if drop == 'pycrate' else 'decoded'} (--containing "
-              f"{a.containing}), as {'pycrate' if drop == 'asn1c' else 'asn1c'} does: {drop} left out")
-        refs = [r for r in refs if r[0] != drop]
+        # pycrate decodes a CONTAINING, asn1c and rasn keep its octets
+        drop = {"pycrate"} if a.containing == "octets" else {"asn1c", "rasn"}
+        print(f"note CONTAINING is {'octets' if a.containing == 'octets' else 'decoded'} (--containing "
+              f"{a.containing}): {', '.join(sorted(drop))} left out")
+        refs = [r for r in refs if r[0] not in drop]
     for name, make in refs:
         try:
             others.append((name, make()))

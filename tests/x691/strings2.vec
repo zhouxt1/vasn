@@ -1,0 +1,33 @@
+# tests/x691/strings2.asn1 in UNALIGNED PER: random values only, against pycrate, asn1c
+# and rasn. The reference deviations below were found by those checks.
+# asn1c encodes GeneralizedTime and UTCTime with 8 bits per character in
+# UPER; they are VisibleStrings (X.691 10.6.5), so 7 bits.
+deviates asn1c GT
+deviates asn1c UT
+deviates pycrate Gen
+deviates pycrate Graph
+deviates pycrate Tel
+deviates pycrate T61
+deviates pycrate Vid
+deviates pycrate Rec
+deviates pycrate BmpA
+deviates pycrate Bmp
+deviates pycrate Univ
+deviates asn1c BmpA
+deviates asn1c UnivA
+deviates rasn Bmp
+deviates rasn BmpS
+deviates rasn BmpF
+deviates rasn BmpA
+deviates rasn BmpX
+deviates rasn Tel
+deviates rasn T61
+deviates rasn UT
+deviates rasn GT
+deviates rasn Univ
+deviates rasn UnivS
+deviates rasn UnivA
+deviates rasn Rec
+deviates-encode rasn Gen
+deviates-encode rasn Graph
+deviates-encode rasn Vid

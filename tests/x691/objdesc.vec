@@ -1,0 +1,4 @@
+# tests/x691/objdesc.asn1 in UNALIGNED PER: random values only, against pycrate, asn1c
+# and rasn. The reference deviations below were found by those checks.
+deviates pycrate Od
+deviates pycrate S

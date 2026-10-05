@@ -1,14 +1,14 @@
 // SIZE with `ub` >= 64K (X.691 11.9.4.2): the general length determinant,
 // fragmenting at 16K bits, octets or components (11.9.3.8).
 //
-//   cargo run -p vuper-examples --bin frag             the checks below, one line each
-//   cargo run -p vuper-examples --bin frag -- --cases  `name hex` per value, to diff against pycrate:
+//   cargo run -p vasn-examples --bin frag             the checks below, one line each
+//   cargo run -p vasn-examples --bin frag -- --cases  `name hex` per value, to diff against pycrate:
 //       tools/frag_pycrate.py prints the same values
 
-use vuperx::cursor::*;
-use vuperx::format::*;
-use vuperx::frag::LenHead;
-use vuper_examples::frag::*;
+use vasn::uper::cursor::*;
+use vasn::uper::format::*;
+use vasn::uper::frag::LenHead;
+use vasn_examples::frag::*;
 
 // Test driver only, so plain Rust, outside `verus!`.
 
@@ -133,7 +133,7 @@ fn main() {
 
     let mut w = BitWriter::with_capacity(1 << 14);
     assert!(BigBits_encode(&mut w, &bits(20000, 0)));
-    let cut = BitWriter { buf: w.buf[..1000].to_vec(), pos: 8000 };
+    let cut = BitWriter { buf: w.buf[..1000].to_vec(), pos: 8000, spare: Vec::new() };
     rejects("20000 bits, truncated to 1000 octets", &cut, bigbits, &mut fails);
 
     println!("{}", if fails == 0 { "all checks passed".to_string() } else { format!("{fails} FAILED") });

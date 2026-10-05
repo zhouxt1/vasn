@@ -1,0 +1,12 @@
+# examples/asn1/frag.asn1: random values against pycrate, asn1c and rasn (no hand vectors;
+# examples/src/bin/frag.rs checks encodings by hand). rasn 0.28 misreads fragmented
+# lengths and large fixed BIT STRINGs (tests/x691/README.md).
+# asn1c rejects a fragmented SEQUENCE OF (16K components or more), as in tests/x691 sizes.
+deviates rasn BigBits
+deviates rasn BigList
+deviates rasn Ext
+deviates rasn ExtList
+deviates rasn FixedBig
+deviates rasn NibbleList
+deviates asn1c BigList
+deviates asn1c ExtList

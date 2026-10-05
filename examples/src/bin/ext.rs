@@ -3,8 +3,8 @@
 // round-trip.
 
 use vstd::prelude::*;
-use vuperx::cursor::*;
-use vuper_examples::ext::*;
+use vasn::uper::cursor::*;
+use vasn_examples::ext::*;
 
 verus! {
 

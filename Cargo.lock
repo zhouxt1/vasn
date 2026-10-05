@@ -77,6 +77,40 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "d245f478577f809a851594d02313b640fb437e0bb33866753cff937863096954"
 
 [[package]]
+name = "vasn"
+version = "0.1.0"
+dependencies = [
+ "vbits",
+ "verus_builtin",
+ "verus_builtin_macros",
+ "vsimd",
+ "vstd",
+]
+
+[[package]]
+name = "vasn-examples"
+version = "0.1.0"
+dependencies = [
+ "vasn",
+ "verus_builtin",
+ "verus_builtin_macros",
+ "vstd",
+]
+
+[[package]]
+name = "vasnc"
+version = "0.1.0"
+
+[[package]]
+name = "vbits"
+version = "0.1.0"
+dependencies = [
+ "verus_builtin",
+ "verus_builtin_macros",
+ "vstd",
+]
+
+[[package]]
 name = "verus_builtin"
 version = "0.0.0-2026-09-16-0054"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -131,6 +165,15 @@ dependencies = [
 ]
 
 [[package]]
+name = "vsimd"
+version = "0.1.0"
+dependencies = [
+ "verus_builtin",
+ "verus_builtin_macros",
+ "vstd",
+]
+
+[[package]]
 name = "vstd"
 version = "0.0.0-2026-09-20-0158"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -139,27 +182,4 @@ dependencies = [
  "verus_builtin",
  "verus_builtin_macros",
  "verus_state_machines_macros",
-]
-
-[[package]]
-name = "vuper-examples"
-version = "0.1.0"
-dependencies = [
- "verus_builtin",
- "verus_builtin_macros",
- "vstd",
- "vuperx",
-]
-
-[[package]]
-name = "vuperc"
-version = "0.1.0"
-
-[[package]]
-name = "vuperx"
-version = "0.1.0"
-dependencies = [
- "verus_builtin",
- "verus_builtin_macros",
- "vstd",
 ]

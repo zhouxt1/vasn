@@ -3,6 +3,9 @@
  *
  *   bench_asn1c DIR ROUNDS [TYPE]
  *   bench_asn1c DIR 0 [TYPE]      list the messages it fails to decode
+ *   bench_asn1c DIR -N [TYPE]     time the encoder, N rounds, on the values the
+ *                                 messages decode to: into one 4096-byte buffer
+ *                                 (*_encode_to_buffer), as bench_ours encode
  *
  * Every message is read into memory first. A round decodes each message once
  * and frees the result, as VUPER's output_time.c does; the time of a round is
@@ -23,6 +26,10 @@
 #include "UL-CCCH-Message.h"
 #include "UL-DCCH-Message.h"
 #include "uper_decoder.h"
+#include "uper_encoder.h"
+#define EXT ".uper"
+#define DECODE uper_decode_complete
+#define ENCODE uper_encode_to_buffer
 
 static const struct { const char *name; asn_TYPE_descriptor_t *def; } types[] = {
     {"DL-DCCH-Message", &asn_DEF_DL_DCCH_Message},
@@ -53,7 +60,7 @@ static size_t load(const char *dir, msg_t **out) {
     struct dirent *e;
     while ((e = readdir(d))) {
         size_t l = strlen(e->d_name);
-        if (l < 5 || strcmp(e->d_name + l - 5, ".uper")) continue;
+        if (l < 5 || strcmp(e->d_name + l - 5, EXT)) continue;
         if (n == cap) names = realloc(names, (cap = cap ? 2 * cap : 1024) * sizeof *names);
         names[n++] = strdup(e->d_name);
     }
@@ -96,10 +103,38 @@ int main(int argc, char **argv) {
     if (rounds == 0) {
         for (size_t i = 0; i < n; i++) {
             void *v = NULL;
-            asn_dec_rval_t rv = uper_decode_complete(NULL, def, &v, m[i].buf, m[i].len);
+            asn_dec_rval_t rv = DECODE(NULL, def, &v, m[i].buf, m[i].len);
             if (rv.code != RC_OK) printf("%s code %d consumed %zu of %zu\n", m[i].name, rv.code, rv.consumed, m[i].len);
             ASN_STRUCT_FREE(*def, v);
         }
+        return 0;
+    }
+    if (rounds < 0) {
+        rounds = -rounds;
+        void **vals = calloc(n, sizeof *vals);
+        size_t nv = 0;
+        for (size_t i = 0; i < n; i++) {
+            void *v = NULL;
+            if (DECODE(NULL, def, &v, m[i].buf, m[i].len).code == RC_OK) vals[nv++] = v;
+            else ASN_STRUCT_FREE(*def, v);
+        }
+        static uint8_t out[4096];
+        uint64_t *t = calloc(rounds, sizeof *t);
+        size_t ok = 0;
+        for (int r = -1; r < rounds; r++) {  /* round -1 warms up */
+            size_t good = 0;
+            uint64_t t0 = now_ns();
+            for (size_t i = 0; i < nv; i++) {
+                asn_enc_rval_t er = ENCODE(def, NULL, vals[i], out, sizeof out);
+                good += er.encoded >= 0;
+            }
+            uint64_t dt = now_ns() - t0;
+            if (r >= 0) t[r] = dt;
+            ok = good;
+        }
+        qsort(t, rounds, sizeof *t, cmp_u64);
+        printf("asn1c %zu values, %zu encoded, min %.1f ns/msg, median %.1f ns/msg\n", nv, ok,
+               (double)t[0] / nv, (double)t[rounds / 2] / nv);
         return 0;
     }
     uint64_t *t = calloc(rounds, sizeof *t);
@@ -109,7 +144,7 @@ int main(int argc, char **argv) {
         uint64_t t0 = now_ns();
         for (size_t i = 0; i < n; i++) {
             void *v = NULL;
-            asn_dec_rval_t rv = uper_decode_complete(NULL, def, &v, m[i].buf, m[i].len);
+            asn_dec_rval_t rv = DECODE(NULL, def, &v, m[i].buf, m[i].len);
             good += rv.code == RC_OK;
             ASN_STRUCT_FREE(*def, v);
         }

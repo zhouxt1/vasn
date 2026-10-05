@@ -2,8 +2,8 @@
 // back with the generated decoder, and compare.
 
 use vstd::prelude::*;
-use vuperx::cursor::*;
-use vuper_examples::demo::*;
+use vasn::uper::cursor::*;
+use vasn_examples::demo::*;
 
 verus! {
 

@@ -4,7 +4,7 @@ BEGIN
 
 -- X.691 23.2: CHOICE alternatives are indexed in canonical tag order (X.680
 -- 8.6: universal, application, context, private; then by number), which is
--- the textual order only under automatic tagging. vuperc used the textual
+-- the textual order only under automatic tagging. vasnc used the textual
 -- order whatever the module's tagging.
 
 ByUniversal ::= CHOICE { s OCTET STRING, i INTEGER (0..7), b BOOLEAN }

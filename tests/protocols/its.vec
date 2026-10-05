@@ -13,3 +13,22 @@ deviates asn1c StationaryVehicleContainer
 deviates asn1c AlacarteContainer
 deviates asn1c DENM
 deviates asn1c DecentralizedEnvironmentalNotificationMessage
+
+# DigitalMap ::= SEQUENCE (SIZE (1..256)) OF ReferencePosition: asn1c rejects
+# one of 201 elements or more, its own encoding and pycrate's included
+# ("Decode failed at byte 34", the second element); 200 it decodes. The length
+# is 8 bits here (X.691 11.9.3.3 in UNALIGNED), c8 for 201.
+deviates asn1c DigitalMap
+
+# rasn 0.28 encodes a list of a size outside an extensible SIZE's root
+# otherwise than X.691 20.4 and 11.9 (PositionOfPillars, SIZE (1..3, ...), of
+# 4: 826eaa68 it sends as fbaa9a, as with tests/x691/sizes.vec's ExtList); it
+# decodes X.691's. And the types that hold such a list.
+deviates-encode rasn PositionOfPillars
+deviates-encode rasn RestrictedTypes
+deviates-encode rasn ReferenceDenms
+deviates-encode rasn ImpactReductionContainer
+deviates-encode rasn RoadWorksContainerExtended
+deviates-encode rasn AlacarteContainer
+deviates-encode rasn DENM
+deviates-encode rasn DecentralizedEnvironmentalNotificationMessage

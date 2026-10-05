@@ -26,3 +26,11 @@ deviates asn1c ByNumber
 
 # Inner k [3] j [1] is j k canonically; pycrate keeps k j
 deviates pycrate Inner
+
+# rasn 0.28 numbers a CHOICE's alternatives in textual order whatever the
+# tags, as pycrate does (X.691 23.2: canonical tag order, X.680 8.6)
+deviates rasn ByClass
+deviates rasn ByNumber
+deviates rasn ByUniversal
+deviates rasn Inner
+deviates rasn Outer

@@ -1,5 +1,5 @@
-//! The codecs vuperc generates from `asn1/`, one module per schema. Each is
-//! checked in; `cargo test -p vuperc` fails if one is out of date.
+//! The codecs vasnc generates from `asn1/`, one module per schema. Each is
+//! checked in; `cargo test -p vasnc` fails if one is out of date.
 #![cfg_attr(not(verus_keep_ghost), allow(unused_imports, unused_variables, dead_code))]
 pub mod choice;
 pub mod demo;

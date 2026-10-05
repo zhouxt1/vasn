@@ -1,0 +1,29 @@
+-- The character strings beyond ISO 646: BMPString and UniversalString
+-- (known-multiplier, 16 and 32 bits a character, X.691 30.5), the strings
+-- that are not known-multiplier (30.6) and the useful types (10.6.5).
+Strings2 DEFINITIONS AUTOMATIC TAGS ::= BEGIN
+Bmp ::= BMPString
+BmpS ::= BMPString (SIZE (1..4))
+BmpF ::= BMPString (SIZE (1))
+BmpA ::= BMPString (FROM ("abcdefghijklmnopqrstuvwxyz0123456789")) (SIZE (0..10))
+BmpX ::= BMPString (SIZE (1..2, ...))
+Univ ::= UniversalString
+UnivS ::= UniversalString (SIZE (0..3))
+UnivA ::= UniversalString (FROM ("ABCDEF"))
+-- the same alphabet as a range of quadruples (X.680 41.8), which neither
+-- reference parses: tests/x691/strings2q.asn1
+Gen ::= GeneralString
+Graph ::= GraphicString
+Tel ::= TeletexString
+T61 ::= T61String
+Vid ::= VideotexString
+GT ::= GeneralizedTime
+UT ::= UTCTime
+Rec ::= SEQUENCE {
+  b BOOLEAN,
+  bmp BmpS,
+  gs GeneralString OPTIONAL,
+  t UTCTime,
+  u UniversalString (SIZE (1)) OPTIONAL
+}
+END

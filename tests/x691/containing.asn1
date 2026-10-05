@@ -4,7 +4,7 @@ BEGIN
 
 -- X.682 11 and X.691 11.1, 11.2: `OCTET STRING (CONTAINING T)` without
 -- ENCODED BY holds the complete encoding of a T, which is what an open type
--- carries. vuperc keeps the octets by default, as asn1c and VUPER do, and
+-- carries. vasnc keeps the octets by default, as asn1c and VUPER do, and
 -- decodes the T with the flag `containing decode`, as pycrate does. (ASN.1
 -- ends a comment at a second pair of hyphens, so the flag is not spelled
 -- out here.) Vectors: containing.vec when decoded, containing.octets.vec

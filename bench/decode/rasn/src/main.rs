@@ -2,6 +2,7 @@
 //! UPER messages. TYPE is DL-DCCH-Message if left out.
 //!
 //!   bench_rasn bench DIR ROUNDS [TYPE]  time it, the same way bench_asn1c does
+//!   bench_rasn encode DIR ROUNDS [TYPE] time the encoder on the values they decode to
 //!   bench_rasn fails DIR [TYPE]         list the messages it fails to decode, or
 //!                                       whose value does not re-encode to the input
 //!
@@ -9,6 +10,9 @@
 //! unedited (bench/decode/build.sh regenerates it).
 #[allow(clippy::all)]
 mod nr_rasn;
+
+use rasn::uper as codec;
+const EXT: &str = "uper";
 
 use std::hint::black_box;
 use std::path::{Path, PathBuf};
@@ -42,7 +46,7 @@ fn load(dir: &Path) -> Vec<(PathBuf, Vec<u8>)> {
     let mut names: Vec<_> = std::fs::read_dir(dir)
         .unwrap_or_else(|e| panic!("{}: {e}", dir.display()))
         .map(|e| e.unwrap().path())
-        .filter(|p| p.extension().is_some_and(|x| x == "uper"))
+        .filter(|p| p.extension().is_some_and(|x| x == EXT))
         .collect();
     names.sort();
     names.into_iter().map(|p| { let b = std::fs::read(&p).unwrap(); (p, b) }).collect()
@@ -57,7 +61,7 @@ fn bench<T: rasn::Decode>(dir: &Path, rounds: usize) {
         let t0 = Instant::now();
         let mut good = 0;
         for (_, m) in &msgs {
-            let v = rasn::uper::decode::<T>(black_box(m));
+            let v = codec::decode::<T>(black_box(m));
             good += v.is_ok() as usize;
             drop(black_box(v));
         }
@@ -78,12 +82,43 @@ fn bench<T: rasn::Decode>(dir: &Path, rounds: usize) {
     );
 }
 
+/// The encoder on the values the messages decode to; rasn's `encode` returns a
+/// new `Vec`, so each message pays an allocation the others do not.
+fn encode<T: rasn::Decode + rasn::Encode>(dir: &Path, rounds: usize) {
+    let vals: Vec<T> = load(dir).iter().filter_map(|(_, m)| codec::decode::<T>(m).ok()).collect();
+    let mut times = Vec::with_capacity(rounds);
+    let mut ok = 0;
+    for r in 0..=rounds {
+        let t0 = Instant::now();
+        let mut good = 0;
+        for v in &vals {
+            let b = codec::encode(black_box(v));
+            good += b.is_ok() as usize;
+            drop(black_box(b));
+        }
+        let dt = t0.elapsed().as_nanos() as f64;
+        if r > 0 {
+            times.push(dt);
+        }
+        ok = good;
+    }
+    times.sort_by(f64::total_cmp);
+    let n = vals.len() as f64;
+    println!(
+        "rasn  {} values, {} encoded, min {:.1} ns/msg, median {:.1} ns/msg",
+        vals.len(),
+        ok,
+        times[0] / n,
+        times[rounds / 2] / n
+    );
+}
+
 fn fails<T: rasn::Decode + rasn::Encode>(dir: &Path) {
     for (p, m) in load(dir) {
         let name = p.file_name().unwrap().to_string_lossy().into_owned();
-        match rasn::uper::decode::<T>(&m) {
+        match codec::decode::<T>(&m) {
             Err(e) => println!("{name} decode: {}", e.to_string().replace('\n', " ")),
-            Ok(v) => match rasn::uper::encode(&v) {
+            Ok(v) => match codec::encode(&v) {
                 Err(e) => println!("{name} re-encode: {}", e.to_string().replace('\n', " ")),
                 Ok(b) if b != m => println!("{name} re-encodes differently"),
                 Ok(_) => {}
@@ -99,9 +134,12 @@ fn main() {
         ["bench", dir, rounds, rest @ ..] => {
             with_type!(ty(rest).as_str(), bench(Path::new(dir), rounds.parse().unwrap()))
         }
+        ["encode", dir, rounds, rest @ ..] => {
+            with_type!(ty(rest).as_str(), encode(Path::new(dir), rounds.parse().unwrap()))
+        }
         ["fails", dir, rest @ ..] => with_type!(ty(rest).as_str(), fails(Path::new(dir))),
         _ => {
-            eprintln!("usage: bench_rasn bench DIR ROUNDS [TYPE] | bench_rasn fails DIR [TYPE]");
+            eprintln!("usage: bench_rasn bench DIR ROUNDS [TYPE] | encode DIR ROUNDS [TYPE] | fails DIR [TYPE]");
             std::process::exit(2);
         }
     }

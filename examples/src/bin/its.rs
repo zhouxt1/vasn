@@ -1,8 +1,8 @@
 // Round-trip a real ETSI ITS PDU header through the generated codec.
 
 use vstd::prelude::*;
-use vuperx::cursor::*;
-use vuper_examples::its::*;
+use vasn::uper::cursor::*;
+use vasn_examples::its::*;
 
 verus! {
 

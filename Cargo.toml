@@ -1,7 +1,7 @@
 [workspace]
 resolver = "2"
-members = ["vuperx", "vuperc", "examples"]
-default-members = ["vuperx", "vuperc", "examples"]
+members = ["vbits", "vsimd", "vasn", "vasnc", "examples"]
+default-members = ["vbits", "vsimd", "vasn", "vasnc", "examples"]
 exclude = ["bench"]
 
 [workspace.package]
@@ -16,10 +16,12 @@ authors = ["Xiaotian Zhou <xzz5503@psu.edu>"]
 vstd = "=0.0.0-2026-09-20-0158"
 verus_builtin = "=0.0.0-2026-09-16-0054"
 verus_builtin_macros = "=0.0.0-2026-09-20-0158"
-vuperx = { path = "vuperx", version = "0.1.0" }
+vbits = { path = "vbits", version = "0.1.0" }
+vasn = { path = "vasn", version = "0.1.0" }
 
 [workspace.lints.rust]
 unexpected_cfgs = { level = "warn", check-cfg = ["cfg(verus_keep_ghost)", "cfg(verus_keep_ghost_body)", "cfg(verus_verify_core)"] }
 
 [profile.release]
 opt-level = 3
+

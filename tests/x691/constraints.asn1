@@ -3,7 +3,7 @@ CONSTRAINT-Tests DEFINITIONS AUTOMATIC TAGS ::=
 BEGIN
 
 -- Effective PER-visible constraints (X.691 10.3, X.680 50-51). Before
--- constraints.rs vuperc kept the first `lb..ub` and skipped the rest of the
+-- constraints.rs vasnc kept the first `lb..ub` and skipped the rest of the
 -- parentheses, and dropped any constraint after a type reference.
 
 Base ::= INTEGER (0..255)

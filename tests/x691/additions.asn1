@@ -3,7 +3,7 @@ ADDITION-Tests DEFINITIONS AUTOMATIC TAGS ::=
 BEGIN
 
 -- X.691 19.5 for an extension addition outside [[ ]]: equal to its default,
--- it is not encoded. vuperc used to keep it as an Option, so both None and
+-- it is not encoded. vasnc used to keep it as an Option, so both None and
 -- Some(3) encoded, the second explicitly.
 DefaultAddition ::= SEQUENCE {
     a  BOOLEAN,
@@ -12,7 +12,7 @@ DefaultAddition ::= SEQUENCE {
 }
 
 -- fields named like an extensible SEQUENCE's hidden parts (`Foo-root`,
--- `Foo-ext0`): vuperc used to hoist the inline types onto those names, which
+-- `Foo-ext0`): vasnc used to hoist the inline types onto those names, which
 -- rustc then rejected as duplicates
 Collide ::= SEQUENCE {
     a     BOOLEAN,

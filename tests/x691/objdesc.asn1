@@ -1,0 +1,7 @@
+-- ObjectDescriptor (X.680 48, X.691 10.6.5): a GraphicString, encoded as a
+-- string that is not known-multiplier (X.691 30.6). Apart from strings2.asn1
+-- because rasn-compiler 0.16 has no ObjectDescriptor; pycrate cannot print one.
+ObjDesc DEFINITIONS AUTOMATIC TAGS ::= BEGIN
+Od ::= ObjectDescriptor
+S ::= SEQUENCE { b BOOLEAN, d ObjectDescriptor OPTIONAL }
+END

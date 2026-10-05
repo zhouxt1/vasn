@@ -29,3 +29,7 @@ accept Rec 9017f6a0 {"a":2,"b":-300}  # b present, a in its root, b in two octet
 # root's unsigned form (80ff80 as 255) where 13.1 makes it an unconstrained,
 # 2's-complement integer (11.8): -1.
 deviates asn1c ExtSemi
+# asn1c writes a semi-constrained INTEGER's offset in two's complement, 123 as
+# 00 80 (11.7.4: the fewest octets of a non-negative binary integer, 80); it
+# decodes X.691's
+deviates-encode asn1c Semi

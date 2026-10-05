@@ -2,7 +2,7 @@
 # Build the four decoders that run.sh times, all from nr-rrc-17.3.0.asn1, for
 # each of the seven channel messages in CHANNELS:
 #
-#   ours   vuperc's crates, one per ASN.1 type, opt-level 3, into nr/
+#   ours   vasnc's crates, one per ASN.1 type, opt-level 3, into nr/
 #   asn1c  the C that VUPER's harness ships, gcc -O2, into asn1c/obj/
 #   rasn   rasn-compiler 0.16.0's bindings, patched to compile (rasn/patch.py)
 #   vuper  VUPER's extracted OCaml, as VUPER builds it: DL-DCCH and UL-DCCH only
@@ -29,8 +29,8 @@ fi
 NR=$PWD/VUPER/diff_test/ASN_Coding/asnfuzzgen/ASN1/nr-rrc-17.3.0.asn1
 
 echo "== ours =="
-cargo build --release -q -p vuperc --manifest-path "$ROOT/Cargo.toml"
-"$ROOT/target/release/vuperc" "$NR" --crate-dir nr.new >/dev/null
+cargo build --release -q -p vasnc --manifest-path "$ROOT/Cargo.toml"
+"$ROOT/target/release/vasnc" "$NR" --crate-dir nr.new >/dev/null
 mkdir -p nr
 for f in nr.new/*; do
     b=$(basename "$f")
@@ -39,7 +39,7 @@ done
 rm -rf nr.new
 # --no-verify: `make -C nr` without VFLAGS verifies these same sources
 make -C nr -k -j"$JOBS" $(printf '%s.vir ' $CHANNELS) ROOT="$ROOT" \
-     VFLAGS="--crate-type=lib --compile -C opt-level=3 -L . --no-verify" >/dev/null
+     VFLAGS="--crate-type=lib --compile -C opt-level=3 -L . -L $ROOT/target/verus --no-verify" >/dev/null
 ( cd ours && cargo build --release -q )
 
 echo "== asn1c =="

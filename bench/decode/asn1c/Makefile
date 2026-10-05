@@ -30,3 +30,12 @@ $(O):
 clean:
 	rm -rf obj dbg
 
+
+# decode and free timed apart, allocator calls counted
+$(O)/profile_asn1c: profile.c $(O)/libasncodec.a
+	$(CC) $(CFLAGS) -o $@ $< $(O)/libasncodec.a -lm \
+	    -Wl,--wrap=malloc,--wrap=calloc,--wrap=realloc,--wrap=free
+
+$(O)/profile_asn1c_bump: profile.c $(O)/libasncodec.a
+	$(CC) $(CFLAGS) -DBUMP -o $@ $< $(O)/libasncodec.a -lm \
+	    -Wl,--wrap=malloc,--wrap=calloc,--wrap=realloc,--wrap=free

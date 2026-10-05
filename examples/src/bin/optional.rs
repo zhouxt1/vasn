@@ -2,8 +2,8 @@
 // that both present and absent values round-trip.
 
 use vstd::prelude::*;
-use vuperx::cursor::*;
-use vuper_examples::optional::*;
+use vasn::uper::cursor::*;
+use vasn_examples::optional::*;
 
 verus! {
 

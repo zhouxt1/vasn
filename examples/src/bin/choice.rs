@@ -1,9 +1,9 @@
 // CHOICE on the wire: an index over the alternatives, then the chosen one.
 
 use vstd::prelude::*;
-use vuperx::cursor::*;
-use vuper_examples::choice::*;
-use vuperx::opt::Null;
+use vasn::uper::cursor::*;
+use vasn_examples::choice::*;
+use vasn::uper::opt::Null;
 
 verus! {
 

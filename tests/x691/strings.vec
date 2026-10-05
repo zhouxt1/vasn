@@ -25,3 +25,5 @@ deviates pycrate One
 # length is always the unconstrained one, in octets. (And asn1c -c rejects
 # ExtStr's sizes outside the root, as for every extensible constraint.)
 deviates asn1c UtfSized
+# rasn 0.28 treats UtfSized's SIZE as PER-visible, as asn1c does
+deviates rasn UtfSized

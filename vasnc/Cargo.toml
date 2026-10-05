@@ -1,0 +1,17 @@
+[package]
+name = "vasnc"
+description = "Compiles ASN.1 into unaligned PER (X.691) codecs in Rust, proved correct by Verus"
+keywords = ["asn1", "per", "uper", "verus", "compiler"]
+categories = ["encoding", "command-line-utilities"]
+readme = "../README.md"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+repository.workspace = true
+authors.workspace = true
+
+[[bin]]
+name = "vasnc"
+path = "src/main.rs"
+
+[dependencies]

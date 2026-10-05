@@ -1,1 +1,5 @@
 *.pdf
+*.html
+iso15118-2/
+iso15118-20/
+rfc*.txt

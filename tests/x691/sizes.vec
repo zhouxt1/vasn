@@ -29,3 +29,18 @@ deviates pycrate ExtBits
 # the extension bit 1, but re-encodes it with the bit 0: X.691 17.3 sets it to
 # 1 when the size is outside the root. Its encoder, not its decoder.
 deviates asn1c SemiExtOctets
+# Found by lengths at the fragment boundaries (vasn::arb). pycrate 0.7.11
+# cannot decode a fragmented BIT STRING, 16384 bits or more, not even its own
+# encoding of one, which is X.691's and ours. asn1c rejects a fragmented
+# SEQUENCE OF of 2-bit elements ("Decode failed at byte 6"), where pycrate
+# agrees with ours.
+deviates pycrate AnyBits
+deviates asn1c SemiList
+# rasn 0.28 prints ExtBits in JER's fixed-size form, as pycrate does (above);
+# re-encodes an ExtList, SIZE (0..2, ...), of a size outside the root otherwise
+# than 20.4 and 11.9 ([true,true,false,false], 8260, as 98), though it decodes
+# X.691's; and misreads a fragmented length after SemiExtOctets' extension
+# bit (a 49152-octet value it takes as 262137)
+deviates rasn ExtBits
+deviates-encode rasn ExtList
+deviates rasn SemiExtOctets

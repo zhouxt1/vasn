@@ -3,8 +3,8 @@
 // Checked by hand, not only round-tripped, and printed as JER (X.697 22).
 
 use vstd::prelude::*;
-use vuperx::cursor::*;
-use vuper_examples::enum_ext::*;
+use vasn::uper::cursor::*;
+use vasn_examples::enum_ext::*;
 
 verus! {
 

@@ -1,8 +1,8 @@
-# Decoding speed on 5G Shield's captures
+# Decoding and encoding speed on 5G Shield's captures
 
-These scripts reproduce OVERVIEW.md §3: our NR RRC decoders against asn1c,
-rasn and VUPER, on every distinct message of the 5G Shield dataset's
-over-the-air captures, for the seven channel messages.
+These scripts reproduce OVERVIEW.md §3: our NR RRC decoders and encoders
+against asn1c, rasn and VUPER, on every distinct message of the 5G Shield
+dataset's over-the-air captures, for the seven channel messages.
 
 | | |
 | --- | --- |
@@ -11,7 +11,7 @@ over-the-air captures, for the seven channel messages.
 | `common.sh TYPE` | The timed set for one channel: the messages ours, asn1c and rasn all decode, in `corpus/shield/<TYPE>-common/`, with the rejects listed next to it |
 | `run.sh DIR CORE TYPE` | Times each decoder on one directory, pinned to one core |
 | `ours/`, `asn1c/`, `rasn/`, `vuper/` | One timing harness per decoder. Each loads every message first, then times whole rounds of decode-and-free |
-| `results_shield.txt` | The recorded run behind the table in OVERVIEW.md |
+| `results_shield.txt` | The recorded run behind the tables in OVERVIEW.md: decoding and encoding |
 
 ## Requirements
 
@@ -47,9 +47,29 @@ them (about 20 min at `-j28`), generate a separate copy, since the unverified
 build's `.vir` files would otherwise count as done:
 
 ```bash
-../../target/release/vuperc VUPER/diff_test/ASN_Coding/asnfuzzgen/ASN1/nr-rrc-17.3.0.asn1 --crate-dir nr-verify
+../../target/release/vasnc VUPER/diff_test/ASN_Coding/asnfuzzgen/ASN1/nr-rrc-17.3.0.asn1 --crate-dir nr-verify
 make -C nr-verify -j$(nproc) ROOT=$(cd ../.. && pwd)
 ```
+
+## Encoding
+
+Each harness also times its encoder, on the values the messages decode to
+(OVERVIEW.md §3): ours into one reused 4096-byte writer, asn1c into
+one 4096-byte buffer (`*_encode_to_buffer`), rasn into the `Vec` its `encode`
+returns.
+
+```bash
+ours/target/release/bench_ours encode DIR 20 TYPE
+asn1c/obj/bench_asn1c DIR -20 TYPE              # a negative round count: encode
+rasn/target/release/bench_rasn encode DIR 20 TYPE
+```
+
+`bench_ours encout DIR OUT TYPE`
+writes each message's re-encoding to `OUT`, which is how a change to the
+encoders is checked: every file must stay the same. `ENC_CAP=N` gives the
+writer N bytes, and `ENC_CAP=exact ENC_REF=DIR` each message exactly as many
+as its encoding in `DIR`, so that its last fields are written in the
+buffer's last eight bytes.
 
 ## Citation
 

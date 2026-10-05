@@ -9,3 +9,5 @@ accept! NotAutomatic a0 {"t":true}  # t is 10
 # misplace it.
 deviates pycrate NotAutomatic
 deviates asn1c NotAutomatic
+# rasn 0.28 keeps the textual order too
+deviates rasn NotAutomatic

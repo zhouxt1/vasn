@@ -4,7 +4,7 @@ BEGIN
 
 -- X.691 11.6: a normally small non-negative whole number is 0 and 6 bits up
 -- to 63, else 1 and a semi-constrained whole number (11.6.2). It is a CHOICE
--- extension index (23.8) and an ENUMERATED one (14.3). vuperc used to reject
+-- extension index (23.8) and an ENUMERATED one (14.3). vasnc used to reject
 -- 64 or more, and any schema with more than 64 extension additions.
 
 BigChoice ::= CHOICE {
