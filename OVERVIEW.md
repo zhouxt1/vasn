@@ -80,7 +80,7 @@ definition in `vasn/src/uper/frag.rs`.
 | **The spec follows X.691** | `vasn`'s formats are written by hand from X.691. That they match the standard is tested, not proved: by hand-derived vectors, and against pycrate, asn1c and VUPER (§3) |
 | **`vasnc` is not verified** | The compiler chooses which format each ASN.1 type gets. Verus proves the generated code correct for the format it was given. If vasnc chose the wrong format, the result would be a verified codec for the wrong format. This happened once during development, when an ENUMERATED with `...` and no extension values was compiled as non-extensible. Differential testing found it, and it is the reason for the cross-checks in §3 |
 | **Verus, Z3, rustc** | the verifier, its SMT solver and its standard library `vstd`, and the Rust compiler |
-| **SSE2 intrinsics, on x86-64** | the reader's `read_octets` and the writer's `write_slice` copy octets that are not on an octet boundary sixteen at a time (`vasn/src/uper/simd.rs`), with `vsimd::x86`'s `loadu`, `set1_epi16`, `unpacklo_epi8`, `unpackhi_epi8`, `srl_epi16`, `and_si128`, `packus_epi16` and `to_bytes`. Each is `external_body`, trusted to compute its lane-level spec; `vsimd/tests/validate.rs` checks each against the CPU through a proved model of the same spec. Everything built on them is proved. Off x86-64 none is used |
+| **SSE2 intrinsics, on x86-64** | the reader's `read_octets` and the writer's `write_slice` copy octets that are not on an octet boundary sixteen at a time (`vasn/src/uper/simd.rs`), with `vsimd::x86`'s `loadu`, `set1_epi16`, `unpacklo_epi8`, `unpackhi_epi8`, `srl_epi16`, `and_si128`, `packus_epi16` and `to_bytes`. Each is `external_body`, trusted to compute its lane-level spec; `vsimd/tests/validate.rs` (in [verified_binary_formats](https://github.com/zhouxt1/verified_binary_formats)) checks each against the CPU through a proved model of the same spec. Everything built on them is proved. Off x86-64 none is used |
 | **Three diagnostic functions** | `BitReader::fail`, `step` and `adopt` in `vasn/src/uper/err.rs` are `external_body`. They record why a decode failed, for `r.error()`, and are trusted to leave the buffer and position alone, as their contracts state |
 | **Unverified by design** | the JER printers (`T_jer`, `vasn/src/jer.rs`), the random value generators (`T_arb`, `vasn/src/arb.rs`), the example drivers and the benchmarks |
 | **The encoder's precondition** | `T_encode` requires a well-formed value, for example an INTEGER within its range. Verified callers must prove that. A plain Rust caller is trusted to meet it, since it is not checked at run time. Decoders have no such precondition and are safe on any input |
@@ -165,7 +165,7 @@ lists the affected components: one in NR (`RLF-TimersAndConstants`'
 | --- | --- | --- |
 | 3GPP NR RRC Rel-17 (`nr-rrc-17.3.0.asn1`, all six modules) | 6919 types, 0 skipped | 6726 crates, 96,330 obligations, 0 errors, 42 min at `make -j20` |
 | ETSI ITS (ITS-Container, CAM, DENM) and the seven feature examples (`examples/`) | 0 skipped | 2410 obligations, 0 errors |
-| `vasn` runtime, with `vbits` and `vsimd` | | 661 obligations, 0 errors |
+| `vasn` runtime, with `vbits` and `vsimd` (from verified_binary_formats) | | 672 obligations, 0 errors |
 
 `bench/decode/README.md` shows how to fetch the NR schema and verify it.
 

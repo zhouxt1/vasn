@@ -654,15 +654,16 @@ pub fn write_crates(out: &Output, dir: &std::path::Path) -> std::io::Result<usiz
          # Verus writes the .vir before it verifies, so a crate that fails would\n\
          # otherwise look verified to the next make run.\n\
          .DELETE_ON_ERROR:\n\n\
-         # ROOT is a checkout of vasn, for the sources of vasn, of vbits, the\n\
-         # bit layer under it, and of vsimd, the SSE2 it copies octets with; all\n\
+         # ROOT is a checkout of vasn, for the sources of vasn; those of vbits,\n\
+         # the bit layer under it, and of vsimd, the SSE2 it copies octets with,\n\
+         # are where cargo put verified_binary_formats (tools/dep-src.sh). All\n\
          # are built here with Verus itself, since their .vir is what each crate\n\
          # imports.\n\
          ROOT ?= ../..\n\
          VERUS ?= verus\n\
          VASN_SRC ?= $(ROOT)/vasn/src\n\
-         VBITS_SRC ?= $(ROOT)/vbits/src\n\
-         VSIMD_SRC ?= $(ROOT)/vsimd/src\n\
+         VBITS_SRC ?= $(shell $(ROOT)/tools/dep-src.sh vbits)\n\
+         VSIMD_SRC ?= $(shell $(ROOT)/tools/dep-src.sh vsimd)\n\
          VASN_DIR ?= $(ROOT)/target/verus\n\
          VASN_VIR ?= $(VASN_DIR)/vasn.vir\n\
          VASN_RLIB ?= $(VASN_DIR)/libvasn.rlib\n\

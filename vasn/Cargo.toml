@@ -12,7 +12,7 @@ authors.workspace = true
 
 [dependencies]
 vbits.workspace = true
-vsimd = { path = "../vsimd", version = "0.1.0" }
+vsimd.workspace = true
 vstd.workspace = true
 verus_builtin.workspace = true
 verus_builtin_macros.workspace = true

@@ -104,6 +104,7 @@ version = "0.1.0"
 [[package]]
 name = "vbits"
 version = "0.1.0"
+source = "git+https://github.com/zhouxt1/verified_binary_formats?tag=v0.1.0#06451b6913a9cd2d47d5576342235e9c15e83170"
 dependencies = [
  "verus_builtin",
  "verus_builtin_macros",
@@ -167,6 +168,7 @@ dependencies = [
 [[package]]
 name = "vsimd"
 version = "0.1.0"
+source = "git+https://github.com/zhouxt1/verified_binary_formats?tag=v0.1.0#06451b6913a9cd2d47d5576342235e9c15e83170"
 dependencies = [
  "verus_builtin",
  "verus_builtin_macros",

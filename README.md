@@ -7,7 +7,8 @@ vasn (verified ASN.1) generates ASN.1 codecs whose correctness is proved in
 X.691), the encoding 5G and LTE RRC and ETSI ITS use. `vasnc` compiles an
 ASN.1 schema into Rust encoders and decoders, each generated type with its
 proof. `vasn` is the verified runtime the generated code builds on, over
-`vbits`, a verified bit layer.
+`vbits`, a verified bit layer, and `vsimd`, verified SSE2, both from
+[verified_binary_formats](https://github.com/zhouxt1/verified_binary_formats).
 
 **Faster than the open-source alternatives, and proved correct.** On real 5G
 traffic (every channel message of
@@ -64,8 +65,8 @@ export PATH=$PWD/tools/verus-x86-linux:$PATH
 cargo verus verify --workspace --release
 ```
 
-This verifies `vbits` (145 obligations), `vsimd` (171), `vasn` (345) and every
-example codec, ETSI ITS included (2410), with 0 errors, in a few minutes.
+This verifies `vbits` (145 obligations) and `vsimd` (182), which cargo fetches
+from verified_binary_formats, `vasn` (345) and every example codec, ETSI ITS included (2410), with 0 errors, in a few minutes.
 Plain `cargo build` compiles the same code with the proofs erased.
 
 ## Use it on your own schema
@@ -127,13 +128,11 @@ and the type is skipped rather than approximated.
 
 | | |
 | --- | --- |
-| `vbits/` | The verified bit layer every codec shares: the bit views of byte buffers and the primitive bit reads and writes, with no encoding rules. `vasn` re-exports it as `vasn::bits` |
-| `vasn/` | The verified runtime, built on `vbits`. `src/uper/` holds unaligned PER: the bit reader and writer (`cursor.rs`), the format definition and its combinators (`format.rs`), and one proved format for each X.691 building block: integers (`intx.rs`), length determinants (`lendet.rs`), fragmentation (`frag.rs`, `fraglist.rs`), open types and the extensible SEQUENCE (`seqext.rs`). `src/utf8.rs`, `time.rs`, `oid.rs` and `real.rs` are the proved checks of UTF-8, of the time types' DER forms, of OBJECT IDENTIFIER contents and of REAL's CER/DER form; `jer.rs` and `arb.rs` are the unverified JER printer and value generator |
+| `vasn/` | The verified runtime, built on `vbits` (re-exported as `vasn::bits`) and `vsimd`, from [verified_binary_formats](https://github.com/zhouxt1/verified_binary_formats). `src/uper/` holds unaligned PER: the bit reader and writer (`cursor.rs`), the format definition and its combinators (`format.rs`), and one proved format for each X.691 building block: integers (`intx.rs`), length determinants (`lendet.rs`), fragmentation (`frag.rs`, `fraglist.rs`), open types and the extensible SEQUENCE (`seqext.rs`). `src/utf8.rs`, `time.rs`, `oid.rs` and `real.rs` are the proved checks of UTF-8, of the time types' DER forms, of OBJECT IDENTIFIER contents and of REAL's CER/DER form; `jer.rs` and `arb.rs` are the unverified JER printer and value generator |
 | `vasnc/` | The compiler: lexer, parser, constraint resolution (`constraints.rs`), normalization, and the code and proof generator (`emit.rs`). Not itself verified: see OVERVIEW.md |
 | `examples/` | `asn1/` holds seven small schemas, one per feature, and ETSI ITS (CAM, DENM and ITS-Container). `src/` holds the codecs `vasnc` generates from them, which are checked in, and `src/bin/` holds a driver for each that checks encodings by hand against X.691. `cargo test` fails if a checked-in codec is out of date |
 | `tests/x691/` | 17 test modules with encodings derived by hand from X.691, and 6 more checked with random values (OBJECT IDENTIFIER, REAL, the strings beyond ISO 646, the time types), run through ours, pycrate, asn1c and rasn. Each deviation from X.691 found in them is recorded in its README. `tests/protocols/its.vec` holds the same check for ETSI ITS, and `tests/examples/` the references' deviations on two of the examples |
-| `tools/` | `get-verus.sh` and `get-asn1c.sh` fetch the pinned Verus release and build asn1c. `xcheck.py` cross-checks one schema against pycrate, asn1c and rasn. `frag_pycrate.py` compares the fragmentation example with pycrate |
-| `vsimd/` | 128-bit SIMD for Verus: SSE2 intrinsics with lane-level contracts, each checked against the CPU through a proved model. `vasn` copies octets that are not on an octet boundary with it. See its README |
+| `tools/` | `get-verus.sh` and `get-asn1c.sh` fetch the pinned Verus release and build asn1c. `xcheck.py` cross-checks one schema against pycrate, asn1c and rasn. `dep-src.sh` prints where cargo put the sources of `vbits` and `vsimd`, which the builds that run Verus directly (`xcheck.py`, `vasnc --crate-dir`'s Makefile) compile. `frag_pycrate.py` compares the fragmentation example with pycrate |
 | `bench/decode/` | Decoding and encoding speed on 5G Shield's over-the-air NR RRC captures, against asn1c, rasn and VUPER. See its README |
 | `docs/spec/` | `get.sh` downloads ITU-T X.680, X.690, X.691 and X.697 (02/2021): the editions every clause number in the code refers to |
 

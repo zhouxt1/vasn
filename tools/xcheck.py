@@ -78,6 +78,14 @@ def sh(cmd, **kw):
 
 # ------------------------------------------------------------------ builds
 
+def src_dir(crate):
+    """vasn's sources are here; vbits' and vsimd's are wherever cargo put
+    verified_binary_formats (tools/dep-src.sh)."""
+    if crate == "vasn":
+        return ROOT / "vasn" / "src"
+    return pathlib.Path(sh([ROOT / "tools" / "dep-src.sh", crate]).strip())
+
+
 def build_tools():
     """vasnc with cargo, and vbits, vsimd and vasn with Verus: the generated
     module imports their .vir, which only Verus writes. vasn is rebuilt
@@ -88,13 +96,14 @@ def build_tools():
     rebuilt = False
     for crate, deps in (("vbits", []), ("vsimd", []), ("vasn", ["vbits", "vsimd"])):
         rlib = VASN / f"lib{crate}.rlib"
-        srcs = list((ROOT / crate / "src").rglob("*.rs"))
+        src = src_dir(crate)
+        srcs = list(src.rglob("*.rs"))
         if rebuilt or not rlib.exists() or any(f.stat().st_mtime > rlib.stat().st_mtime for f in srcs):
             imports = [a for d in deps for a in
                        ("--import", f"{d}={VASN}/{d}.vir", "--extern", f"{d}={VASN}/lib{d}.rlib")]
             silent = ["--triggers-mode", "silent"] if crate == "vsimd" else []
             sh([VERUS, "--crate-type=lib", "--crate-name", crate, "--compile", "-C", "opt-level=3",
-                *silent, *imports, "--export", VASN / f"{crate}.vir", ROOT / crate / "src/lib.rs", "-o", rlib])
+                *silent, *imports, "--export", VASN / f"{crate}.vir", src / "lib.rs", "-o", rlib])
             rebuilt = True
 
 

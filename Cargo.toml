@@ -1,7 +1,7 @@
 [workspace]
 resolver = "2"
-members = ["vbits", "vsimd", "vasn", "vasnc", "examples"]
-default-members = ["vbits", "vsimd", "vasn", "vasnc", "examples"]
+members = ["vasn", "vasnc", "examples"]
+default-members = ["vasn", "vasnc", "examples"]
 exclude = ["bench"]
 
 [workspace.package]
@@ -16,7 +16,9 @@ authors = ["Xiaotian Zhou <xzz5503@psu.edu>"]
 vstd = "=0.0.0-2026-09-20-0158"
 verus_builtin = "=0.0.0-2026-09-16-0054"
 verus_builtin_macros = "=0.0.0-2026-09-20-0158"
-vbits = { path = "vbits", version = "0.1.0" }
+# the bit layer and SSE2, from verified_binary_formats (built against the same Verus)
+vbits = { git = "https://github.com/zhouxt1/verified_binary_formats", tag = "v0.1.0" }
+vsimd = { git = "https://github.com/zhouxt1/verified_binary_formats", tag = "v0.1.0" }
 vasn = { path = "vasn", version = "0.1.0" }
 
 [workspace.lints.rust]
