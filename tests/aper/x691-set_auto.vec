@@ -1,0 +1,3 @@
+# pycrate 0.7.11's ALIGNED encoder fails on a fragmented SET OF, as on a
+# SEQUENCE OF (x691-sizes.vec)
+deviates pycrate AnyFlags

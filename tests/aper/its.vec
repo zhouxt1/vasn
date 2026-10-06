@@ -1,0 +1,163 @@
+# ETSI ITS (examples/asn1/its.asn1) in the ALIGNED variant: pycrate agrees on
+# every random value; these are asn1c's disagreements.
+#
+# 11.5.7.1: INTEGER (1..255, ...)'s root is an 8-bit bit-field, not aligned.
+accept! ProtectedZoneRadius 0580 12  # 0, 00001011. asn1c writes this, and decodes it as 129
+#
+# asn1c's decoder misreads or rejects encodings its own encoder writes for
+# these (an 8-bit extensible root; types holding one, or holding a list with
+# an extensible SIZE). Checked by re-encoding the value with asn1c's encoder:
+# the bytes are ours.
+deviates asn1c ProtectedZoneRadius
+deviates asn1c ProtectedCommunicationZone
+deviates asn1c ProtectedCommunicationZonesRSU
+deviates asn1c RSUContainerHighFrequency
+deviates asn1c HighFrequencyContainer  # holds RSUContainerHighFrequency; asn1c cannot read these values from JER to re-encode
+deviates asn1c ImpactReductionContainer
+deviates asn1c RoadWorksContainerExtended
+deviates asn1c SafetyCarContainer
+deviates asn1c SpecialVehicleContainer
+deviates asn1c AlacarteContainer
+# asn1c's JER reader turns a character outside the BMP, printed as a UTF-16
+# surrogate pair (X.697), into two 3-octet sequences (CESU-8), so a
+# UTF8String holding one comes out different; nothing to do with PER
+deviates asn1c DangerousGoodsExtended
+deviates asn1c StationaryVehicleContainer
+# the messages, holding the containers above
+deviates asn1c CAM
+deviates asn1c CoopAwareness
+deviates asn1c CamParameters
+deviates asn1c DENM
+deviates asn1c DecentralizedEnvironmentalNotificationMessage
+
+# rasn 0.28, ALIGNED: the alignment faults of alignment.vec (a SEQUENCE OF's
+# elements aligned, a constrained length or a NumericString not), and the
+# extensible-SIZE encoding of tests/protocols/its.vec, reach most of ITS:
+deviates rasn AlacarteContainer
+deviates rasn BasicVehicleContainerLowFrequency
+deviates rasn CAM
+deviates rasn CamParameters
+deviates rasn CoopAwareness
+deviates rasn DecentralizedEnvironmentalNotificationMessage
+deviates rasn DENM
+deviates rasn EventHistory
+deviates rasn ImpactReductionContainer
+deviates rasn ItineraryPath
+deviates rasn LocationContainer
+deviates rasn LowFrequencyContainer
+deviates rasn PathHistory
+deviates rasn PositionOfPillars
+deviates rasn ProtectedCommunicationZonesRSU
+deviates rasn ReferenceDenms
+deviates rasn RoadWorksContainerExtended
+deviates rasn RSUContainerHighFrequency
+deviates rasn SituationContainer
+deviates rasn Traces
+deviates-encode rasn BasicContainer
+deviates-encode rasn DangerousGoodsExtended
+deviates-encode rasn DigitalMap
+deviates rasn HighFrequencyContainer  # holds RSUContainerHighFrequency (above); found decoding one, by byte mutation
+deviates-encode rasn ManagementContainer
+deviates-encode rasn PhoneNumber
+deviates-encode rasn RestrictedTypes
+deviates-encode rasn SpecialVehicleContainer
+deviates-encode rasn StationaryVehicleContainer
+
+# Found by byte mutation, each derived by hand from X.691
+# (02/2021): encodings no sender writes, which references read anyway.
+#
+# ProtectedZoneType ::= ENUMERATED {permanentCenDsrcTolling (0), ...,
+# temporaryCenDsrcTolling (1)}: 1 (extension), 1 (the long form of the
+# normally small index, 11.6.2), padding, then a length of 0: the whole
+# number in no octets. 11.7.4 puts it in a minimum octet encoding, whose
+# field 11.3.6 calls unique; 0 in no octets would be a second encoding of the
+# 00 it allows. (And index 0 is the short form's, 11.6.1.)
+reject! ProtectedZoneType c000  # asn1c, pycrate accept, as extension index 0 (temporaryCenDsrcTolling)
+# PathDeltaTime ::= INTEGER (1..65535, ...): 1 (outside the root, 13.1),
+# padding, then the unconstrained encoding of 13.2.4 to 13.2.6: a length,
+# and the minimum octet 2's-complement integer of 11.4.6, whose leading nine
+# bits are not all ones. ff80, -128, has nine ones: -128 is 80.
+reject! PathDeltaTime 8002ff80  # rasn, pycrate accept (-128); asn1c -c rejects -128 for its own reason (integers.vec's ExtBig)
+reject! PathDeltaTime 8000  # the same with a length of 0: an integer in no octets. pycrate reads 0
+# PositionOfPillars ::= SEQUENCE (SIZE (1..3, ...)) OF PosPillar: 0 (in the
+# root), then the length as a constrained whole number, 2 bits for 1..3
+# (20.6, 11.9.3.3): 11 would be 1 + 3 = 4, which is no root size.
+reject! PositionOfPillars 600000  # pycrate reads four PosPillars (all 1), and re-encodes them as an extension
+# 1 (20.4: "set to 1 if the number of components ... is not within the range
+# of the extension root, and zero otherwise"), padding, length 1, one
+# PosPillar 00000 (1): one component is in the root, so its bit is 0.
+reject! PositionOfPillars 800100  # asn1c, rasn, pycrate accept [1]
+# ClosedLanes ::= SEQUENCE {3 OPTIONAL, ...}: 1 (extension), 000, then the
+# count as a normally small length, 0 000010 (n = 3, 11.9.3.4), the bitmap
+# 111 (19.7), padding, and then an open type (19.9, 11.2) for each of the three
+# additions: 01 00, 01 00, and nothing: the message ends before the third.
+reject! ClosedLanes 805c01000100  # asn1c, rasn accept ({}): they read no further than the root
+# HighFrequencyContainer ::= CHOICE {.., rsuContainerHighFrequency
+# RSUContainerHighFrequency, ...}: 0, 1 (the root index, rsu), then
+# RSUContainerHighFrequency ::= SEQUENCE {.. OPTIONAL, ...}: 1 (extension),
+# 0 (absent), and the message ends where the count of additions begins (19.8).
+reject! HighFrequencyContainer 60  # rasn accepts ({"rsuContainerHighFrequency":{}}): it reads nothing after the extension bit
+# AlacarteContainer ::= SEQUENCE {6 OPTIONAL, ...}: 1 (extension), 000000,
+# then 1: the long form of the count, for n > 64 (11.9.3.4), padding, and a
+# length of 0. n cannot be 0 (19.8 NOTE), nor below 65 in this form.
+reject! AlacarteContainer 810000  # asn1c, rasn, pycrate accept ({}); pycrate ignores the octet after
+# PathDeltaTime ::= INTEGER (1..65535, ...): 1, padding, length 2, 0002: 2
+# in two octets, which 11.4.6 puts in one (02); and 2 is in the root, which
+# 13.1 sends with the bit 0.
+reject! PathDeltaTime 80020002  # asn1c, rasn, pycrate accept 2
+# 2^64: 1, padding, length 9, 01 and eight 00: a value of the type (outside
+# its root, 13.1), but past the i64 ours holds INTEGERs in (OVERVIEW.md
+# §2: an INTEGER beyond i64 is rejected)
+reject! PathDeltaTime 8009010000000000000000  # pycrate accepts 18446744073709551616; asn1c, rasn reject it too
+# ProtectedZoneRadius ::= INTEGER (1..255, ...): 0 (root), then the root as
+# an 8-bit bit-field (11.5.7.1, as at the top of this file): 11111111 is
+# 1 + 255 = 256, above 255.
+reject! ProtectedZoneRadius 7f80  # pycrate accepts 256 (and asn1c 129, as above)
+# The indefinite-length case of 11.5.7.4: a range of more than 64K is sent
+# as its octets, after their count as a constrained whole number from 1 to
+# the octets the range needs.
+# ProtectedCommunicationZone ::= SEQUENCE {protectedZoneType, expiryTime
+# OPTIONAL, latitude, longitude, radius OPTIONAL, id OPTIONAL, ...}: 0
+# (extension), 100 (expiryTime present), ProtectedZoneType's 0 (its root has
+# one value, so no index), then expiryTime, TimestampIts ::= INTEGER
+# (0..4398046511103): 2^42 values need 6 octets, so the count 1..6 in 3 bits,
+# and 110 is 7 octets.
+reject! ProtectedCommunicationZone 460000000000000000000000000000  # rasn, pycrate accept expiryTime 0
+# PathPoint ::= SEQUENCE {pathPosition DeltaReferencePosition, pathDeltaTime
+# OPTIONAL}: 0 (absent), then deltaLatitude, INTEGER (-131071..131072): 2^18
+# values need 3 octets, so the count 1..3 in 2 bits, and 11 is 4 octets.
+reject! PathPoint 60000000000000000000  # rasn, pycrate accept deltaLatitude -131071
+# OpeningDaysHours ::= UTF8String: 30.6 carries its characters' UTF-8. ed a0
+# 80 would be U+D800, a surrogate, and f4 90 80 80 U+110000, past U+10FFFF:
+# neither is a character (ISO/IEC 10646 via X.680 41), nor valid UTF-8
+# (RFC 3629 3, 4).
+reject! OpeningDaysHours 03eda080  # asn1c accepts it, even with -c
+reject! OpeningDaysHours 04f4908080  # asn1c accepts it, even with -c
+# HighFrequencyContainer: 1 (extension), 1 (the index's long form, 11.6.2),
+# padding, length 10, and ten 00: index 0 in ten octets, not the fewest
+# (11.3.6), and below 64 (11.6.1); then an open type, 01 00.
+reject! HighFrequencyContainer c00a000000000000000000000100  # pycrate accepts it, as an alternative it does not know
+# VehicleIdentification ::= SEQUENCE {2 OPTIONAL, ...}: 1 (extension), 00,
+# then the count 0 010000 (n = 17, 11.9.3.4), and the message ends 6 bits
+# into the 17-bit bitmap (19.7).
+reject! VehicleIdentification 8400  # rasn accepts ({}): it reads nothing after the extension bit
+# rasn 0.28 does not step over the extension additions of a SEQUENCE that
+# has none it knows (above: it reads nothing after the extension bit), so
+# it reads what follows such a SEQUENCE from the wrong bits. With one
+# addition present, StationaryVehicleContainer {carryingDangerousGoods
+# DangerousGoodsExtended {explosives1, 0, FALSE, FALSE, FALSE, and an
+# addition 00}, numberOfOccupants 5}: 001100 (present), 1 (extension), 000,
+# 00000, padding, 0000 (unNumber), 000, then the count 0 000000, the bitmap
+# 1, padding, the open type 01 00, and 0000101: 32 00 00 00 00 20 01 00 0a.
+# Ours and asn1c read numberOfOccupants 5 (ours flags DiffVer, and drops the
+# addition), rasn 0. (Not an accept! line: ours re-encodes it without the
+# addition it does not know, as it must, so the vector format has no line
+# for it.)
+deviates rasn StationaryVehicleContainer
+# The same fault, where a CauseCode ::= SEQUENCE {causeCode, subCauseCode,
+# ...} with an addition present is followed by more: rasn reads
+# SafetyCarContainer's speedLimit, and EmergencyContainer's
+# emergencyPriority, from the bits of the addition
+deviates rasn SafetyCarContainer
+deviates rasn EmergencyContainer
+deviates rasn SpecialVehicleContainer  # holds both

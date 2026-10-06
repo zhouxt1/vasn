@@ -1,0 +1,8 @@
+# pycrate 0.7.11's ALIGNED encoder fails on a fragmented SEQUENCE OF
+# ("type object 'ASN1CodecPER' has no attribute 'encode_pas'")
+deviates pycrate AnyList
+deviates pycrate SemiList
+# rasn 0.28, ALIGNED: ExtList, SEQUENCE (SIZE (0..2, ...)) OF BOOLEAN, it
+# reads with its elements aligned (20.6: they are not; 48 is [false, true]),
+# and rejects the message when the padding runs past the end
+deviates rasn ExtList

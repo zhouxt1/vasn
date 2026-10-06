@@ -1,0 +1,55 @@
+# examples/asn1/ext.asn1 in the ALIGNED variant, hand-derived from X.691
+# (02/2021) 19, 11.9.3.4, 11.2.
+#
+# Ext {a FALSE, b 237, c FALSE}: 1 (extension bit), 0 (a), 0 000001 (the count,
+# 2, as a normally small length, 11.9.3.4), 11 (the bitmap, 19.7), padding to
+# the octet, then each addition as an open type (11.2: its octets after an
+# aligned length): 01 ed, 01 00.
+accept! Ext 80e001ed0100 {"a":false,"b":237,"c":false}  # pycrate writes 80e0 00 01ed0100, which its own decoder rejects
+accept! Ext 40 {"a":true}  # 0 (no additions present), 1
+accept! One c0400130 {"k":true,"v":3}  # 1, 1, 0 000000 (count 1), 1, padding, 01 30. pycrate adds an octet
+reject! One c0000130  # the bitmap is all zero: never an encoding (19.8 NOTE). pycrate, asn1c accept
+reject! One c0400131  # the addition's padding bit is 1 (11.1.4: a sender writes 0; we reject other bits). pycrate, asn1c accept
+
+# pycrate's APER encoder puts an extra 00 octet in front of the first
+# extension addition's open type, and its own decoder cannot read the
+# result (CharpyErr: bitlen overflow). Its decoder reads the encoding above.
+deviates pycrate Ext
+deviates pycrate One
+deviates pycrate Grouped
+deviates pycrate Carrier
+
+# rasn 0.28 rejects a SEQUENCE without an extension addition that is not
+# OPTIONAL ("Extension with class `context` and tag `1` required, but not
+# present"); a sender of the version before the addition sends none, and
+# X.691 19.7 gives such a message a value. It prints a [[ ]] group as an
+# object "SEQUENCE" of its own, and misreads a list inside one (Carrier.xs,
+# Listed.ids: "Invalid length fragment"). The same in UNALIGNED.
+deviates rasn AllOpt
+deviates rasn Carrier
+deviates rasn Ext
+deviates rasn Grouped
+deviates rasn Listed
+deviates rasn One
+deviates rasn RoomList
+
+# Found by byte mutation, derived by hand from X.691 (02/2021).
+#
+# AllOpt ::= SEQUENCE {k, ..., [[u OPTIONAL, v OPTIONAL]]}: 1, 0 (k), the
+# count 0 000000 (one addition), the bitmap 1, padding, then the group as an
+# open type: 01 00, its preamble 00: u and v both absent. 19.9: "If all
+# components values of the ExtensionAdditionGroup are missing then, the
+# ExtensionAdditionGroup shall be encoded as a missing extension addition".
+reject! AllOpt 80400100  # asn1c, rasn, pycrate accept {"k":false}
+# RoomList ::= SEQUENCE {ids SEQUENCE (SIZE (0..3)) OF BOOLEAN, ...}: 1
+# (extension), 00 (no ids), then 1: the long form of the count, for n > 64
+# (11.9.3.4), padding, and a length of 0. n cannot be 0 (19.8 NOTE).
+reject! RoomList 9000  # asn1c, rasn accept {"ids":[]}
+# Room ::= SEQUENCE {x, y OPTIONAL, ...}: 1, 0 (y), 0000 (x), the count
+# 0 000000 (one addition), and its bitmap bit 0: the extension bit says an
+# addition is present (19.1), the bitmap that none is.
+reject! Room 8000  # asn1c, rasn, pycrate accept {"x":0}
+# Room: 1, 1 (y), 0000 (x), 0 (y false), then 1: the long form of the count,
+# for n > 64 (11.9.3.4), and 01: n = 1, which is 0 000000; then the bitmap.
+reject! Room c10100  # asn1c, rasn accept {"x":0,"y":false}
+reject! Room c1010000  # the same, with an octet after: pycrate accepts it too

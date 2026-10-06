@@ -45,6 +45,7 @@ fn is_constructed(t: &Type) -> bool {
             | Type::RelativeOid
             | Type::Real
             | Type::Contains(_)
+            | Type::Open(_)
     ) || is_single_int(t)
 }
 
@@ -101,7 +102,9 @@ impl Hoister {
                     taken.insert(name.clone());
                     reserve_hidden(&mut taken, name, ty);
                 }
-                Assignment::ParamType { name, .. } | Assignment::Value { name, .. } => {
+                Assignment::ParamType { name, .. } | Assignment::Value { name, .. }
+                | Assignment::Class { name, .. } | Assignment::Object { name, .. }
+                | Assignment::ObjectSet { name, .. } => {
                     taken.insert(name.clone());
                 }
             }
@@ -172,7 +175,7 @@ impl Hoister {
                     self.descend(&p, inner);
                 }
             }
-            Type::Contains(inner) => {
+            Type::Contains(inner) | Type::Open(inner) => {
                 let p = format!("{path}-contained");
                 if is_constructed(inner) {
                     self.lift(&p, inner);
@@ -228,21 +231,73 @@ pub fn expand_params(module: &mut Module) -> usize {
     let mut taken: HashSet<String> = module
         .assignments
         .iter()
-        .map(|a| match a {
-            Assignment::Type { name, .. }
-            | Assignment::ParamType { name, .. }
-            | Assignment::Value { name, .. } => name.clone(),
-        })
+        .map(|a| assignment_name(a).to_string())
         .collect();
     let mut instances: std::collections::HashMap<(String, Vec<String>), String> =
         std::collections::HashMap::new();
     let mut new_defs: Vec<Assignment> = Vec::new();
+
+    // a value parameter, `INTEGER : lowerBound`, used in a constraint
+    fn subst_num(n: &mut Num, map: &std::collections::HashMap<String, String>) {
+        if let Num::Ref(r) = n {
+            if let Some(a) = map.get(r.as_str()) {
+                *n = match a.parse::<i64>() {
+                    Ok(v) => Num::Lit(v),
+                    Err(_) => Num::Ref(a.clone()),
+                };
+            }
+        }
+    }
+    fn subst_set(e: &mut SetExpr, map: &std::collections::HashMap<String, String>) {
+        match e {
+            SetExpr::Elem(el) => subst_elem(el, map),
+            SetExpr::Union(v) | SetExpr::Inter(v) => v.iter_mut().for_each(|x| subst_set(x, map)),
+            SetExpr::Except(a, b) => {
+                subst_set(a, map);
+                subst_set(b, map);
+            }
+            SetExpr::AllExcept(a) => subst_set(a, map),
+        }
+    }
+    fn subst_spec(c: &mut ConsSpec, map: &std::collections::HashMap<String, String>) {
+        subst_set(&mut c.root, map);
+        if let Some(a) = c.adds.as_mut() {
+            subst_set(a, map);
+        }
+    }
+    fn subst_elem(el: &mut Elem, map: &std::collections::HashMap<String, String>) {
+        match el {
+            Elem::Value(CValue::Int(n)) => subst_num(n, map),
+            Elem::Range(a, _, b, _) => {
+                if let Bound::Val(n) = a {
+                    subst_num(n, map);
+                }
+                if let Bound::Val(n) = b {
+                    subst_num(n, map);
+                }
+            }
+            Elem::Size(c) | Elem::From(c) | Elem::Nested(c) => subst_spec(c, map),
+            _ => {}
+        }
+    }
 
     fn subst(t: &mut Type, map: &std::collections::HashMap<String, String>) {
         match t {
             Type::Ref(n) => {
                 if let Some(a) = map.get(n) {
                     *n = a.clone();
+                }
+            }
+            // an object set parameter in a table constraint
+            Type::ClassField { set: Some(s), .. } => {
+                if let Some(a) = map.get(s.as_str()) {
+                    *s = a.clone();
+                }
+            }
+            Type::Constrained(inner, specs) => {
+                subst(inner, map);
+                for c in specs.iter_mut() {
+                    subst_spec(c, map);
                 }
             }
             Type::ParamRef(_, args) => {
@@ -266,7 +321,7 @@ pub fn expand_params(module: &mut Module) -> usize {
                 }
             }
             Type::SequenceOf(_, inner) => subst(inner, map),
-            Type::Constrained(inner, _) | Type::Tagged(_, inner) | Type::SetOf(_, inner) => subst(inner, map),
+            Type::Tagged(_, inner) | Type::SetOf(_, inner) => subst(inner, map),
             Type::Set(root, ext) => {
                 for f in root.iter_mut().chain(ext.iter_mut().flatten().flat_map(ExtAdd::fields_mut)) {
                     subst(&mut f.ty, map);
@@ -400,7 +455,7 @@ pub fn break_containing_cycles(module: &mut Module) -> Vec<String> {
     let mut broken = Vec::new();
     for a in module.assignments.iter_mut() {
         if let Assignment::Type { name, ty } = a {
-            if let Type::Contains(inner) = ty {
+            if let Type::Contains(inner) | Type::Open(inner) = ty {
                 let mut r = Vec::new();
                 crate::emit::collect_refs(inner, &mut r);
                 if r.iter().any(|x| reaches(x, name)) {
@@ -411,4 +466,199 @@ pub fn break_containing_cycles(module: &mut Module) -> Vec<String> {
         }
     }
     broken
+}
+
+/// Every reference a type makes by name, renamed by `f` (after hoisting a
+/// name is all a reference is).
+fn map_refs(t: &mut Type, f: &dyn Fn(&str) -> Option<String>) {
+    match t {
+        Type::Ref(n) => {
+            if let Some(m) = f(n) {
+                *n = m;
+            }
+        }
+        Type::Sequence(root, ext) | Type::Set(root, ext) => {
+            for fl in root.iter_mut() {
+                map_refs(&mut fl.ty, f);
+            }
+            for a in ext.iter_mut().flatten() {
+                for fl in a.fields_mut() {
+                    map_refs(&mut fl.ty, f);
+                }
+            }
+        }
+        Type::Choice(root, ext) => {
+            for (_, a) in root.iter_mut().chain(ext.iter_mut().flatten()) {
+                map_refs(a, f);
+            }
+        }
+        Type::SequenceOf(_, inner) | Type::SetOf(_, inner) | Type::Contains(inner) | Type::Open(inner)
+        | Type::Constrained(inner, _) | Type::Tagged(_, inner) => map_refs(inner, f),
+        Type::Keyed { key, alts, unknown, .. } => {
+            map_refs(key, f);
+            for (_, _, r) in alts.iter_mut() {
+                if let Some(m) = f(r) {
+                    *r = m;
+                }
+            }
+            if let Some(m) = f(unknown) {
+                *unknown = m;
+            }
+        }
+        _ => {}
+    }
+}
+
+/// The name of the type that stands where a recursive type is cut off.
+pub const TOO_DEEP: &str = "VASNC-Nested-Too-Deep";
+
+/// A recursive type (E2SM-RC's `RANParameter-ValueType` holds structures and
+/// lists of itself), unrolled `levels` deep: vasnc builds no recursive
+/// formats. In each strongly connected set of types, the heads are the
+/// targets of a depth-first search's back edges, so every cycle passes one;
+/// level 0 is the types themselves, and level k a copy of each, `T-rk`, whose
+/// references to a head go one level down. Below the last level a head is
+/// `TOO_DEEP`, which has no value: the format is the recursive type's,
+/// restricted to values nested at most `levels` deep (a decoder rejects a
+/// deeper one, as it would one too long). The types' names, by set.
+pub fn unroll_recursion(module: &mut Module, levels: usize) -> Vec<Vec<String>> {
+    use std::collections::HashMap;
+    let mut graph: HashMap<String, Vec<String>> = HashMap::new();
+    let mut order: Vec<String> = Vec::new();
+    for a in &module.assignments {
+        if let Assignment::Type { name, ty } = a {
+            let mut r = Vec::new();
+            crate::emit::collect_refs(ty, &mut r);
+            graph.insert(name.clone(), r);
+            order.push(name.clone());
+        }
+    }
+    // Tarjan's strongly connected components
+    struct T<'a> {
+        g: &'a HashMap<String, Vec<String>>,
+        idx: HashMap<String, usize>,
+        low: HashMap<String, usize>,
+        on: HashSet<String>,
+        st: Vec<String>,
+        n: usize,
+        out: Vec<Vec<String>>,
+    }
+    fn visit(t: &mut T, v: &str) {
+        t.idx.insert(v.to_string(), t.n);
+        t.low.insert(v.to_string(), t.n);
+        t.n += 1;
+        t.st.push(v.to_string());
+        t.on.insert(v.to_string());
+        let next: Vec<String> = t.g.get(v).cloned().unwrap_or_default();
+        for w in next.iter().filter(|w| t.g.contains_key(*w)) {
+            if !t.idx.contains_key(w) {
+                visit(t, w);
+                let lw = t.low[w];
+                let lv = t.low.get_mut(v).unwrap();
+                *lv = (*lv).min(lw);
+            } else if t.on.contains(w) {
+                let iw = t.idx[w];
+                let lv = t.low.get_mut(v).unwrap();
+                *lv = (*lv).min(iw);
+            }
+        }
+        if t.low[v] == t.idx[v] {
+            let mut c = Vec::new();
+            loop {
+                let w = t.st.pop().unwrap();
+                t.on.remove(&w);
+                c.push(w.clone());
+                if w == v {
+                    break;
+                }
+            }
+            t.out.push(c);
+        }
+    }
+    let mut t = T { g: &graph, idx: HashMap::new(), low: HashMap::new(), on: HashSet::new(), st: Vec::new(), n: 0, out: Vec::new() };
+    for v in &order {
+        if !t.idx.contains_key(v) {
+            visit(&mut t, v);
+        }
+    }
+    let sccs: Vec<Vec<String>> = t
+        .out
+        .into_iter()
+        .filter(|c| c.len() > 1 || graph[&c[0]].contains(&c[0]))
+        .map(|mut c| {
+            // in the order the module defines them, for stable output
+            c.sort_by_key(|n| order.iter().position(|o| o == n));
+            c
+        })
+        .collect();
+    if sccs.is_empty() {
+        return sccs;
+    }
+    for scc in &sccs {
+        let inside: HashSet<&str> = scc.iter().map(String::as_str).collect();
+        // heads: back edges' targets, by a depth-first search from each type
+        let mut heads: HashSet<String> = HashSet::new();
+        let mut done: HashSet<String> = HashSet::new();
+        fn dfs(v: &str, g: &HashMap<String, Vec<String>>, inside: &HashSet<&str>, stack: &mut Vec<String>,
+               done: &mut HashSet<String>, heads: &mut HashSet<String>) {
+            stack.push(v.to_string());
+            for w in g[v].iter().filter(|w| inside.contains(w.as_str())) {
+                if stack.contains(w) {
+                    heads.insert(w.clone());
+                } else if !done.contains(w) {
+                    dfs(w, g, inside, stack, done, heads);
+                }
+            }
+            stack.pop();
+            done.insert(v.to_string());
+        }
+        for v in scc {
+            if !done.contains(v) {
+                dfs(v, &graph, &inside, &mut Vec::new(), &mut done, &mut heads);
+            }
+        }
+        let name_at = |n: &str, k: usize| -> String {
+            if k == 0 { n.to_string() } else { format!("{n}-r{k}") }
+        };
+        let rename = |k: usize| {
+            let heads = heads.clone();
+            let inside: HashSet<String> = inside.iter().map(|s| s.to_string()).collect();
+            move |n: &str| -> Option<String> {
+                if !inside.contains(n) {
+                    return None;
+                }
+                let k2 = if heads.contains(n) { k + 1 } else { k };
+                Some(if k2 > levels { TOO_DEEP.to_string() } else { name_at(n, k2) })
+            }
+        };
+        let originals: HashMap<String, Type> = module
+            .assignments
+            .iter()
+            .filter_map(|a| match a {
+                Assignment::Type { name, ty } if inside.contains(name.as_str()) => Some((name.clone(), ty.clone())),
+                _ => None,
+            })
+            .collect();
+        // level 0, in place: a head reached from outside is at level 0
+        for a in module.assignments.iter_mut() {
+            if let Assignment::Type { name, ty } = a {
+                if inside.contains(name.as_str()) {
+                    map_refs(ty, &rename(0));
+                }
+            }
+        }
+        for k in 1..=levels {
+            for n in scc {
+                let mut ty = originals[n].clone();
+                map_refs(&mut ty, &rename(k));
+                let copy = name_at(n, k);
+                if let Some(e) = module.envs.get(n).copied() {
+                    module.envs.insert(copy.clone(), e);
+                }
+                module.assignments.push(Assignment::Type { name: copy, ty });
+            }
+        }
+    }
+    module.assignments.push(Assignment::Type { name: TOO_DEEP.to_string(), ty: Type::Never });
+    sccs
 }

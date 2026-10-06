@@ -1,0 +1,39 @@
+# Checked against the references at random only (examples/asn1/frag.asn1).
+#
+# pycrate 0.7.11's ALIGNED encoder fails on a fragmented SEQUENCE OF
+# (x691-sizes.vec): BigList, ExtList, NibbleList of 16K elements or more
+deviates pycrate BigList
+deviates pycrate ExtList
+deviates pycrate NibbleList
+# rasn 0.28 reads BigBits' and BigList's lengths, SIZE (1..65536), as
+# constrained whole numbers, where an upper bound of 64K makes them the general
+# length of 11.9.4.2 (0e b6e8, 14 bits, it takes as 3759); and FixedBig,
+# SIZE (65536), without a
+# length, which 16.8 omits only below 64K (it reads our c4 header as bits); it
+# rejects an absent mandatory extension addition (ext.vec) and prints a [[ ]]
+# group under "SEQUENCE"
+deviates rasn BigBits
+deviates rasn BigList
+deviates rasn FixedBig
+deviates rasn NibbleList
+deviates rasn Ext
+deviates rasn ExtList
+#
+# Found by byte mutation (X.691 (02/2021)): BigList's SIZE
+# (1..65536) has an upper bound of 64K or more, so its length is n itself
+# (11.9.4.2, 11.9.3.5 NOTE: lb does not affect it), and 00 is 0 elements,
+# which the SIZE constraint has no value for.
+reject! BigList 00  # asn1c accepts it as []
+# BigBits of 65535 bits: c3 (three fragments of 16K bits, 11.9.3.8.2 b),
+# 6144 octets, then the remaining 16383 bits as a two-octet length, bf ff,
+# and 2048 octets, the last bit padding (16.11). pycrate 0.7.11 reads it as
+# 32766 bits (and re-encodes that).
+deviates pycrate BigBits
+# BigOctets of 65537 octets: c4 (four fragments of 16K octets), 65536
+# octets, then 01 and the last octet. rasn 0.28 decodes it, and re-encodes
+# the last octet wrong: 11 x 65536 then 22 comes back as ... 01 11. It
+# writes the octets after a 64K fragment from the wrong place. And 81920
+# octets, c4, 65536 octets, c1, 16384 octets, 00 (11.9.3.8.3: the
+# procedures are reapplied to the rest, again a fragment, then a length of
+# 0), it rejects ("Need more data to continue").
+deviates rasn BigOctets

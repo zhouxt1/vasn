@@ -2,7 +2,7 @@
 """Check vasnc's codec for a schema against pycrate and asn1c.
 
     tools/xcheck.py SCHEMA.asn1 [-n N] [--seed S] [--types A,B] [--vectors FILE]
-                    [--containing octets|decode]
+                    [--containing octets|decode] [--aper]
 
 Builds three decoders for SCHEMA: ours (vasnc and its `--driver`, compiled
 with Verus, --no-verify: the per-type verification is a separate run), asn1c's
@@ -24,6 +24,9 @@ converter-example (tools/get-asn1c.sh), and pycrate's generated module. Then:
   marked in the file, `accept! ...` / `reject! ...` with a comment, and a
   disagreement there is reported but not counted as ours.
 
+`--aper` checks ALIGNED PER instead of UNALIGNED: vasnc's `--aper`, asn1c's
+`-iaper`/`-oaper`, pycrate's `from_aper`/`to_aper`.
+
 `--containing` is passed to vasnc. `OCTET STRING (CONTAINING T)` is octets
 to asn1c and a T to pycrate, so a schema that has one is checked against
 asn1c alone under `octets` (the default) and against pycrate alone under
@@ -32,6 +35,7 @@ asn1c alone under `octets` (the default) and against pycrate alone under
 Exit status is 1 if any check of ours failed.
 """
 import argparse
+import collections
 import contextlib
 import glob
 import importlib.util
@@ -61,7 +65,7 @@ sys.set_int_max_str_digits(0)
 sys.path[:0] = glob.glob("/usr/local/lib/python3*/dist-packages/pycrate-*.egg")
 
 
-# which PER variant every tool is asked for: UNALIGNED, the only one here
+# "uper" or "aper", from --aper: which PER variant every tool is asked for
 VARIANT = "uper"
 
 # a wide ENUMERATED or CHOICE compiles to a deep if/else chain, which
@@ -132,8 +136,23 @@ def build_asn1c(schema, d):
     shutil.rmtree(a, ignore_errors=True)
     a.mkdir()
     other = "-no-gen-UPER" if VARIANT == "aper" else "-no-gen-APER"
-    sh([ASN1C, "-pdu=all", "-fcompound-names", "-no-gen-BER", "-no-gen-XER", "-no-gen-OER",
+    # XCHECK_ASN1C_FLAGS: more of asn1c's options (-findirect-choice, as the
+    # RAN stacks build their protocols with)
+    extra = os.environ.get("XCHECK_ASN1C_FLAGS", "").split()
+    sh([ASN1C, "-pdu=all", "-fcompound-names", *extra, "-no-gen-BER", "-no-gen-XER", "-no-gen-OER",
         other, schema], cwd=a)
+    # XCHECK_ASN1C_RANGE8=1: asn1c's ALIGNED decoder with its known 8-bit
+    # INTEGER bug fixed (it aligns before a range of 129 to 255 values, which
+    # X.691 11.5.7.1 does not; tests/ioc/range8.asn1), so that what that bug
+    # hides shows
+    if VARIANT == "aper" and os.environ.get("XCHECK_ASN1C_RANGE8"):
+        f = a / "INTEGER_aper.c"
+        src = f.read_text()
+        old = "} else if (ct->range_bits == 8) {\n                    if (aper_get_align(pd) < 0)"
+        if src.count(old) != 1:
+            sys.exit("XCHECK_ASN1C_RANGE8: asn1c's INTEGER_aper.c is not the one the fix is for")
+        f.write_text(src.replace(old, "} else if (ct->range_bits == 8) {\n                    "
+                                 "if (ct->upper_bound - ct->lower_bound == 255 && aper_get_align(pd) < 0)"))
     sh(["make", "-s", "-f", "converter-example.mk", f"-j{os.cpu_count()}"], cwd=a)
     return a / "converter-example"
 
@@ -260,6 +279,10 @@ class Ours:
     def gen(self, ty, n, seed):
         rows = []
         for line in sh([self.exe, "gen", ty, str(n), str(seed)]).splitlines():
+            if line.startswith("err"):
+                # the driver's writer was too small for the value
+                print(f"note {ty}: a random value our encoder ran out of buffer for")
+                continue
             hx, bits, j = line.split(" ", 2)
             rows.append((hx, int(bits), json.loads(j)))
         return rows
@@ -358,8 +381,13 @@ class Asn1c:
         if "improper format selector" in probe.stderr:
             raise SystemExit(f"its converter has no {VARIANT.upper()} for this module (asn1c implements none for SET)")
 
+    def pdu(self, ty):
+        """the name the converter knows the type by: as written, or (older
+        asn1c) with `_` for `-`"""
+        return ty if ty in self.pdus else ty.replace("-", "_")
+
     def knows(self, ty):
-        return ty.replace("-", "_") in self.pdus
+        return self.pdu(ty) in self.pdus
 
     def dec(self, ty, hx, check=False):
         """`check`: asn1c's -c, every constraint, PER-visible or not. Vectors
@@ -370,9 +398,14 @@ class Asn1c:
         with tempfile.NamedTemporaryFile(suffix="." + v) as f:
             f.write(bytes.fromhex(hx))
             f.flush()
-            pdu = ty.replace("-", "_")
+            pdu = self.pdu(ty)
             j = subprocess.run([self.exe, "-p", pdu, "-1"] + (["-c"] if check else []) + [f"-i{v}", "-ojer", f.name],
                                capture_output=True, text=True, errors="replace")
+            if j.returncode != 0 and "Cannot convert" in j.stderr and ("<absent>" in j.stderr or "<unknown>" in j.stderr):
+                # it decoded the value, but an open type whose id no object
+                # of its set has (a newer peer's IE) comes out <absent>, and
+                # its JER printer refuses a value with one
+                return ("absent", "asn1c: an IE of an id it does not know is decoded <absent>, and not printed")
             if j.returncode != 0 or not j.stdout.strip():
                 return ("reject", (j.stderr.strip().splitlines() or ["?"])[-1][:160])
             u = subprocess.run([self.exe, "-p", pdu, "-1", f"-i{v}", f"-o{v}", f.name], capture_output=True)
@@ -396,7 +429,20 @@ def jer_eq(a, b):
     that differs only in case would also change the re-encoded bytes, which
     are compared exactly, so this cannot hide one.)"""
     if isinstance(a, dict) and isinstance(b, dict):
+        # a decoded CONTAINING: X.697 25.4's {"containing": v}, which pycrate
+        # prints as {"TypeName": v} (tests/x691/README.md)
+        if len(a) == 1 and len(b) == 1 and "containing" in (a.keys() | b.keys()):
+            return jer_eq(next(iter(a.values())), next(iter(b.values())))
         return a.keys() == b.keys() and all(jer_eq(a[k], b[k]) for k in a)
+    # a BIT STRING under an extensible size constraint: X.697's variable form
+    # {"value", "length"} against pycrate's fixed form, the hex alone, of the
+    # same bits (its length a whole number of hex digits)
+    for x, y in ((a, b), (b, a)):
+        if isinstance(x, dict) and x.keys() == {"value", "length"} and isinstance(y, str) \
+                and isinstance(x["value"], str) and 4 * len(y) - 7 <= x["length"] <= 4 * len(y):
+            # (pycrate's fixed form loses a length that is not a whole number
+            # of octets, tests/x691/README.md; the bits are the same)
+            return x["value"].upper() == y.upper()
     if isinstance(a, list) and isinstance(b, list):
         return len(a) == len(b) and all(jer_eq(x, y) for x, y in zip(a, b))
     if isinstance(a, str) and isinstance(b, str) and a != b:
@@ -404,10 +450,19 @@ def jer_eq(a, b):
     # X.697 23.4's base-10 object, against a printer that writes every REAL
     # as a number: the same number (whether the base survived is the
     # re-encoding's business)
+    # (pycrate writes the base-10 value as a string, "9.6000000000000002e-02",
+    # where the other side has a number)
+    def b10(v):
+        if isinstance(v, str):
+            try:
+                return float(v)
+            except ValueError:
+                return v
+        return v
     if isinstance(a, dict) and list(a) == ["base10Value"] and not isinstance(b, dict):
-        return jer_eq(a["base10Value"], b)
+        return jer_eq(b10(a["base10Value"]), b)
     if isinstance(b, dict) and list(b) == ["base10Value"] and not isinstance(a, dict):
-        return jer_eq(a, b["base10Value"])
+        return jer_eq(a, b10(b["base10Value"]))
     num = (int, float)
     if isinstance(a, num) and isinstance(b, num) and not isinstance(a, bool) and not isinstance(b, bool) \
             and (isinstance(a, float) or isinstance(b, float)):
@@ -533,6 +588,15 @@ def check_random(ours, others, types, n, seed, report, deviates=frozenset()):
                     report.known()
                     continue
                 r = dec.dec(ty, pad(hx))
+                if r[0] == "absent":
+                    report.known()
+                    continue
+                if name == "pycrate" and len(pad(hx)) >= 2 * 16384 and not (
+                        r[0] == "accept" and DEFAULTS.same(ty, r[1], val) and r[2] == pad(hx)):
+                    # pycrate misreads a container after an open type of 16K
+                    # octets or more (tests/ioc/bigie.vec)
+                    report.known()
+                    continue
                 if r[0] == "reject" and ("out of constraint" in r[1] or "out of size constraint" in r[1]
                                          or "constraint check failed" in r[1]):
                     # our generator draws from the effective, PER-visible
@@ -556,6 +620,59 @@ def check_random(ours, others, types, n, seed, report, deviates=frozenset()):
                 else:
                     report.ok()
         report.progress(ty, len(rows))
+
+
+def check_corpus(spec, ours, others, report):
+    """Captured messages, one per file (`DIR:TYPE`): ours must decode each
+    to what every reference decodes it to, and re-encode it to the same
+    octets when it decoded it as this version (`SameVer`). A message ours
+    rejects and a reference accepts is a failure until triaged; one a
+    reference rejects and ours accepts is reported as the reference's."""
+    d, ty = spec.rsplit(":", 1)
+    files = sorted(p for p in pathlib.Path(d).iterdir() if p.is_file())
+    hexes = [f.read_bytes().hex() for f in files]
+    res = []
+    for i in range(0, len(hexes), 500):
+        res.extend(ours.dec(ty, hexes[i:i + 500]))
+    tally = collections.Counter()
+    for f, hx, r in zip(files, hexes, res):
+        theirs = {name: dec.dec(ty, hx) for name, dec in others if dec.knows(ty)}
+        if r[0] == "reject":
+            acc = [n for n, t in theirs.items() if t[0] in ("accept", "absent")]
+            if acc and r[1].startswith("padding:"):
+                # not a complete encoding (X.691 11.1.3, 11.1.4): a padding
+                # bit not zero, or octets after the value's. Ours rejects
+                # it, by decision; the references are lenient
+                report.known()
+                tally["ours rejects for padding or trailing octets, a reference accepts"] += 1
+            elif acc:
+                report.fail(ty, hx, f"{f.name}: ours rejects ({r[1]}), {', '.join(acc)} accept")
+                tally["ours rejects, a reference accepts"] += 1
+            else:
+                report.ok()
+                tally["all reject"] += 1
+            continue
+        _, val, flag, re_ = r
+        if flag == "SameVer" and re_ != hx:
+            report.fail(ty, hx, f"{f.name}: ours re-encodes it to {re_[:64]}")
+            tally["ours re-encodes differently"] += 1
+            continue
+        good = True
+        for name, t in theirs.items():
+            if t[0] == "absent":
+                tally[f"{name}: an IE it does not know, <absent>"] += 1
+                continue
+            if t[0] == "reject":
+                report.fail(ty, hx, f"{f.name}: {name} rejects it: {t[1]}", counts=False)
+                tally[f"{name} rejects"] += 1
+            elif not DEFAULTS.same(ty, t[1], val):
+                report.fail(ty, hx, f"{f.name}: {name} decodes a different value", val, t[1])
+                tally[f"{name} decodes differently"] += 1
+                good = False
+        if good:
+            report.ok()
+            tally["all agree" if flag == "SameVer" else "all agree, DiffVer"] += 1
+    print(f"     {spec}: {len(files)} messages: " + ", ".join(f"{n} {k}" for k, n in sorted(tally.items())))
 
 
 def check_vectors(path, ours, others, types, report):
@@ -609,6 +726,10 @@ class Report:
             self.fails += 1
         else:
             self.theirs += 1
+        if os.environ.get("XCHECK_DUMP"):
+            # every failure whole, for triage: TYPE<TAB>WHY<TAB>HEX
+            with open(os.environ["XCHECK_DUMP"], "a") as f:
+                f.write(f"{ty}\t{why.splitlines()[0] if why else ''}\t{hx}\n")
         print(f"{'FAIL' if counts else 'ref '} {ty} {hx[:64]}{'...' if len(hx) > 64 else ''}: {why}")
         if want is not None:
             print(f"       expected {json.dumps(want)[:300]}")
@@ -629,13 +750,24 @@ def main():
     ap.add_argument("--dir", help="build directory (default target/xcheck/<schema>)")
     ap.add_argument("--verify", action="store_true", help="also verify the generated module with Verus")
     ap.add_argument("--containing", choices=("octets", "decode"), default="octets")
+    ap.add_argument("--aper", action="store_true", help="ALIGNED PER instead of UNALIGNED")
     ap.add_argument("--no-rasn", action="store_true", help="leave rasn out")
+    ap.add_argument("--keep-refs", action="store_true",
+                    help="keep every reference despite CONTAINING (its fields then differ, to be triaged)")
+    ap.add_argument("--driver", help="a prebuilt driver (a crate-dir build's), instead of building one")
+    ap.add_argument("--corpus", action="append", default=[],
+                    help="DIR:TYPE, captured messages of TYPE, one per file")
     a = ap.parse_args()
+    global VARIANT
+    VARIANT = "aper" if a.aper else "uper"
     schema = pathlib.Path(a.schema).resolve()
-    d = pathlib.Path(a.dir or ROOT / "target/xcheck" / schema.stem).resolve()
+    d = pathlib.Path(a.dir or ROOT / "target/xcheck" / (schema.stem + ("-aper" if a.aper else ""))).resolve()
     d.mkdir(parents=True, exist_ok=True)
-    build_tools()
-    exe, skipped = build_ours(schema, d, a.containing)
+    if a.driver:
+        exe, skipped = pathlib.Path(a.driver).resolve(), []
+    else:
+        build_tools()
+        exe, skipped = build_ours(schema, d, a.containing)
     for s in skipped:
         print(f"note {s}")
     if a.verify:
@@ -658,7 +790,7 @@ def main():
             ("rasn", lambda: Rasn(build_rasn(schema, d, ours.types())))]
     if a.no_rasn:
         refs = [r for r in refs if r[0] != "rasn"]
-    if "CONTAINING" in text:
+    if "CONTAINING" in text and not a.keep_refs:
         # pycrate decodes a CONTAINING, asn1c and rasn keep its octets
         drop = {"pycrate"} if a.containing == "octets" else {"asn1c", "rasn"}
         print(f"note CONTAINING is {'octets' if a.containing == 'octets' else 'decoded'} (--containing "
@@ -679,6 +811,8 @@ def main():
     report = Report()
     if a.vectors:
         check_vectors(a.vectors, ours, others, types, report)
+    for c in a.corpus:
+        check_corpus(c, ours, others, report)
     if a.n > 0:
         check_random(ours, others, a.types.split(",") if a.types else types, a.n, a.seed, report,
                      deviations(a.vectors))

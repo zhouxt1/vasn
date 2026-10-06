@@ -1,0 +1,10 @@
+-- A recursive type, which vasnc unrolls 8 levels deep (normalize.rs's
+-- unroll_recursion): a Tree nested 9 deep is a value, one 10 deep is not
+-- decoded (a limit of ours, as a decoder's on a length; X.691 has none).
+-- E2SM-RC's RANParameter-ValueType is such a type.
+Recursive DEFINITIONS AUTOMATIC TAGS ::= BEGIN
+Tree ::= SEQUENCE {
+    v     INTEGER (0..7),
+    kids  SEQUENCE (SIZE (0..2)) OF Tree
+}
+END

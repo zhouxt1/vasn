@@ -1,0 +1,24 @@
+-- An IE whose open type is 16K octets or more, and so is fragmented
+-- (X.691 11.2.2, 11.9.3.8): the pattern of TS 38.413 with one big IE.
+BigIe DEFINITIONS AUTOMATIC TAGS ::= BEGIN
+Criticality ::= ENUMERATED { reject, ignore, notify }
+Presence ::= ENUMERATED { optional, conditional, mandatory }
+ProtocolIE-ID ::= INTEGER (0..65535)
+id-Big ProtocolIE-ID ::= 7
+IES ::= CLASS {
+    &id          ProtocolIE-ID UNIQUE,
+    &criticality Criticality,
+    &Value,
+    &presence    Presence
+}
+WITH SYNTAX { ID &id CRITICALITY &criticality TYPE &Value PRESENCE &presence }
+ProtocolIE-Container {IES : IEsSetParam} ::= SEQUENCE (SIZE (0..8)) OF ProtocolIE-Field {{IEsSetParam}}
+ProtocolIE-Field {IES : IEsSetParam} ::= SEQUENCE {
+    id          IES.&id          ({IEsSetParam}),
+    criticality IES.&criticality ({IEsSetParam}{@id}),
+    value       IES.&Value       ({IEsSetParam}{@id})
+}
+Big ::= OCTET STRING (SIZE (0..70000))
+Msg ::= SEQUENCE { protocolIEs ProtocolIE-Container { {MsgIEs} }, ... }
+MsgIEs IES ::= { { ID id-Big CRITICALITY reject TYPE Big PRESENCE mandatory }, ... }
+END

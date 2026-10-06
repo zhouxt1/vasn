@@ -1,0 +1,12 @@
+logger:
+  path:
+    file: /tmp/bsf.log
+global:
+bsf:
+  sbi:
+    server:
+    - address: 127.0.0.15
+      port: 7777
+    client:
+      scp:
+      - uri: http://127.0.1.10:7777

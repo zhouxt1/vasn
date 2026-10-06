@@ -73,7 +73,7 @@ pub(super) fn gen_choice_ext(
         }
         out
     };
-    let byref = |c: &Compiled| !(c.rust_ty == "bool" || c.rust_ty == "i64" || c.rust_ty == "Null");
+    let byref = |c: &Compiled| !(c.rust_ty == "bool" || c.rust_ty == "i64" || c.rust_ty == "u64" || c.rust_ty == "Null");
 
     let mut s = String::new();
     s.push_str(&format!(

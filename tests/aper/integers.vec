@@ -1,0 +1,61 @@
+# Hand-derived from X.691 (02/2021) 11.5.7, 11.3.6, 11.7, 11.8, 13.2.6, ALIGNED
+# variant. Each type starts at bit 0 of the outermost encoding.
+#
+# 11.5.7.1: a range up to 255 is UPER's bit-field.
+accept Small fe 254  # 8-bit bit-field
+# 11.5.7.2: a range of 256 is one octet, octet-aligned.
+accept Octet 05 5
+accept Octet2 00 -100  # n - lb = 0
+accept Octet2 ff 155  # n - lb = 255
+# 11.5.7.3: a range of 257 to 64K is two octets, octet-aligned.
+accept Two 0100 256
+accept TwoMax 0000 1
+accept TwoMax ffff 65536  # n - lb = 65535
+# 11.5.7.4, 13.2.6 a: over 64K, the octet count L as a constrained whole
+# number of range 1..M (M = the octets of ub - lb), then L octets, aligned.
+# Big: ub - lb = 65536 = 0x010000, M = 3, L - 1 in 2 bits.
+accept Big 0000 0  # L = 1: 00, 6 padding bits, 00
+accept Big 400100 256  # L = 2: 01, padding, 0100
+accept Big 80010000 65536  # L = 3: 10, padding, 010000
+reject! Big 400001  # L = 2 for 1, which needs one octet: not the fewest (11.3.6). pycrate, asn1c accept
+reject Big c0000000  # L = 4, above M = 3
+reject! Big 0100  # L = 1, but a padding bit is 1 (11.1.4: a sender writes 0; we reject other bits). pycrate, asn1c accept
+# Big32: ub - lb = 2^32 - 1, M = 4, 2 bits.
+accept Big32 0000 0
+accept Big32 c0ffffffff 4294967295
+# Big40 (NGAP's AMF-UE-NGAP-ID): ub - lb = 2^40 - 1, M = 5, 3 bits.
+accept Big40 0000 0
+accept Big40 0001 1
+accept Big40 80ffffffffff 1099511627775  # L = 5: 100, padding, 5 octets
+# BigNeg: ub - lb = 2000000 = 0x1e8480, M = 3, 2 bits.
+accept BigNeg 0000 -1000000
+accept BigNeg 801e8480 1000000
+# 11.7, 13.2.6 b: semi-constrained, n - lb in the fewest octets after an
+# unconstrained length, which is one octet here, octet-aligned.
+accept Semi 0100 -5
+accept Semi 01ff 250
+accept Semi 0487b722cf 2276926154  # n - lb = 0x87b722cf: 4 octets, the top bit is a value bit (11.3)
+# 11.8: unconstrained, 2's complement in the fewest octets.
+accept Unconstrained 0180 -128
+accept Unconstrained 020080 128
+# 13.1: the extension bit, then the root's encoding or, outside the root, an
+# unconstrained one (11.8), which is octet-aligned.
+accept Ext 50 5  # 0, then 3 bits: as in UPER
+accept! Ext 800108 8  # 1, padding, length 01, 08. asn1c -c: "constraint failed"
+reject! Ext 800103  # 3 is in the root, so never an extension (10.4.3). pycrate, asn1c accept
+accept ExtOne 00 5  # 0 and nothing (13.2.1)
+accept ExtTwo 000000 0  # 0, 7 bits of padding, two octets (11.5.7.3)
+accept ExtTwo 0003e8 1000  # 0, padding, 03e8
+accept ExtBig 0005 5  # 0, L - 1 = 0 in 2 bits (M = 3 for 70000), padding, 05
+accept! ExtBig 8003011171 70001  # 1, padding, unconstrained: length 3, 011171. asn1c -c: "constraint failed"
+accept ExtSemi 000103 3  # 0, padding, semi-constrained: length 1, 03
+
+# asn1c's APER encoder writes a semi-constrained value's octets as 2's
+# complement: n - lb = 0x87b722cf becomes 0500 87b722cf, five octets, where
+# 11.7.4 asks for the fewest octets of a non-negative-binary-integer (11.3.6):
+# four. It decodes the four-octet form correctly.
+deviates asn1c Semi
+deviates asn1c Mix
+# asn1c decodes the extension branch of (0..MAX, ...) as the root's unsigned
+# form, where 13.1 makes it unconstrained, 2's complement (as in UPER)
+deviates asn1c ExtSemi

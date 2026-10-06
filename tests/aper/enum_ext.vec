@@ -1,0 +1,14 @@
+# examples/asn1/enum_ext.asn1 in the ALIGNED variant. Found by
+# byte mutation, derived by hand from X.691 (02/2021) 14.3, 11.6: an
+# extension value's index is a normally small non-negative whole number.
+#
+# Grown ::= ENUMERATED {a, b, c, ..., d-v1700, e-v1700}: 1 (extension), then
+# 1: 11.6.2's long form, which is for n >= 64; padding, length 1, 00: index
+# 0 = d-v1700, which 11.6.1 puts in the short form, 0 000000 (80).
+reject! Grown c00100  # asn1c, rasn, pycrate accept "d-v1700"
+# the same, length 2, 0000: and not the minimum octets either (11.7.4, 11.3.6)
+reject! Grown c0020000  # asn1c, rasn, pycrate accept "d-v1700"
+# Lone ::= ENUMERATED {only, ...}: 1, 0 000000: extension index 0, a newer
+# version's value, which an ENUMERATED of this schema cannot hold, so ours
+# rejects it (emit/enum_ext.rs; smallnum.vec's BigEnum is the same)
+reject! Lone 80  # pycrate keeps it as "_ext_0"; asn1c -c and rasn reject it too

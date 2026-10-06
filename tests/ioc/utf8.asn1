@@ -1,0 +1,8 @@
+-- A UTF8String with a SIZE constraint, as NGAP's names are (AMFNameUTF8String,
+-- RANNodeNameUTF8String, AIOTFNameUTF8String): no constraint on a UTF8String
+-- is PER-visible (X.691 10.3.7, 30.6), so its length is the unconstrained one,
+-- in octets.
+Utf8 DEFINITIONS AUTOMATIC TAGS ::= BEGIN
+Name ::= UTF8String (SIZE (1..150, ...))
+Named ::= SEQUENCE { a BOOLEAN, name Name OPTIONAL, b BOOLEAN }
+END

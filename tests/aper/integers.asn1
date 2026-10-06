@@ -1,0 +1,46 @@
+-- ALIGNED PER: the four cases of a constrained whole number (X.691 11.5.7),
+-- and the semi-constrained and unconstrained ones (11.7, 11.8), each also
+-- after a bit so that the padding in front of an aligned field is exercised.
+APER-Integers DEFINITIONS AUTOMATIC TAGS ::=
+
+BEGIN
+
+Small ::= INTEGER (0..254)             -- 8-bit bit-field, not aligned
+Octet ::= INTEGER (0..255)             -- range 256: one octet, aligned
+Octet2 ::= INTEGER (-100..155)         -- the same, lb < 0
+Two ::= INTEGER (0..256)               -- range 257: two octets, aligned
+TwoMax ::= INTEGER (1..65536)          -- range 64K: two octets, aligned
+Big ::= INTEGER (0..65536)             -- range 64K + 1: the indefinite length case
+Big32 ::= INTEGER (0..4294967295)
+Big40 ::= INTEGER (0..1099511627775)   -- NGAP's AMF-UE-NGAP-ID
+BigNeg ::= INTEGER (-1000000..1000000)
+Semi ::= INTEGER (-5..MAX)
+Unconstrained ::= INTEGER
+
+-- 13.1: an extension bit; a value outside the root is sent unconstrained,
+-- octet-aligned; a root over 64K keeps the indefinite length case (13.2.6 a)
+Ext ::= INTEGER (0..7, ...)
+ExtOne ::= INTEGER (5, ...)
+ExtBig ::= INTEGER (0..70000, ...)
+ExtTwo ::= INTEGER (0..1000, ...)
+ExtSemi ::= INTEGER (0..MAX, ...)
+
+Mix ::= SEQUENCE {
+    a  BOOLEAN,
+    b  Octet,
+    c  BOOLEAN,
+    d  Two,
+    e  Small,
+    f  Big32,
+    g  BOOLEAN,
+    h  Big40,
+    i  Semi,
+    j  BOOLEAN,
+    k  Unconstrained,
+    l  BigNeg OPTIONAL,
+    m  ExtTwo,
+    n  BOOLEAN,
+    o  ExtBig
+}
+
+END

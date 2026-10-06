@@ -203,6 +203,7 @@ impl<'a> Resolver<'a> {
     fn num(&self, n: &Num) -> Result<I, String> {
         match n {
             Num::Lit(v) => Ok(*v as I),
+            Num::Big(v) => Ok(*v),
             Num::Ref(r) => self.values.get(r).map(|v| *v as I).ok_or_else(|| format!("unknown value `{r}`")),
         }
     }
@@ -298,6 +299,8 @@ impl<'a> Resolver<'a> {
             Type::BitString(_) | Type::NamedBitString(_) => Self::universal(3),
             Type::OctetString(_) => Self::universal(4),
             Type::Null => Self::universal(5),
+            // made after tags are resolved; never in a CHOICE that needs one
+            Type::Never => None,
             Type::ObjectId => Self::universal(6),
             Type::RelativeOid => Self::universal(13),
             Type::Real => Self::universal(9),
@@ -305,6 +308,7 @@ impl<'a> Resolver<'a> {
             Type::Sequence(..) | Type::SequenceOf(..) => Self::universal(16),
             Type::Set(..) | Type::SetOf(..) => Self::universal(17),
             Type::Contains(_) => Self::universal(4),
+            Type::Open(_) => None,
             Type::Str(k, ..) => Self::universal(k.tag() as _),
             Type::Choice(root, ext) => {
                 if self.automatic(td, root, ext) {
@@ -321,7 +325,10 @@ impl<'a> Resolver<'a> {
                     best
                 }
             }
-            Type::ParamRef(..) | Type::Invalid(_) => None,
+            Type::ParamRef(..) | Type::Invalid(_) | Type::ClassField { .. } => None,
+            // an open type has no tag (X.680 31.2.7)
+            Type::Dispatch { .. } => None,
+            Type::Keyed { .. } => Self::universal(16),
         })
     }
 
@@ -392,6 +399,7 @@ impl<'a> Resolver<'a> {
                 IntCons::RangeExt(a, b) => (VS::Int(Ints::range(self.num(a)?, self.num(b)?)), true),
                 IntCons::Semi(a) => (VS::Int(Ints::range(self.num(a)?, POS)), false),
                 IntCons::SemiExt(a) => (VS::Int(Ints::range(self.num(a)?, POS)), true),
+                IntCons::U64 => (VS::Int(Ints::range(0, u64::MAX as I)), false),
             }),
             Type::BitString(s) | Type::NamedBitString(s) | Type::OctetString(s) | Type::SequenceOf(s, _) => {
                 (Dom::Sized, sz(s)?)
@@ -554,6 +562,7 @@ impl<'a> Resolver<'a> {
                     (false, true, false) => IntCons::Semi(Self::lit(lo)?),
                     (false, true, true) => IntCons::SemiExt(Self::lit(lo)?),
                     (false, false, false) if lo == hi => IntCons::Fixed(Self::lit(lo)?),
+                    (false, false, false) if lo == 0 && hi == u64::MAX as I => IntCons::U64,
                     (false, false, false) => IntCons::Range(Self::lit(lo)?, Self::lit(hi)?),
                     (false, false, true) => IntCons::RangeExt(Self::lit(lo)?, Self::lit(hi)?),
                 })
@@ -770,6 +779,13 @@ impl<'a> Resolver<'a> {
                 Type::Choice(r2, e2)
             }
             Type::SequenceOf(s, inner) => Type::SequenceOf(s.clone(), Box::new(self.resolve(inner)?)),
+            Type::Keyed { key_name, key, alts, unknown, ext } => Type::Keyed {
+                key_name: key_name.clone(),
+                key: Box::new(self.resolve(key)?),
+                alts: alts.clone(),
+                unknown: unknown.clone(),
+                ext: *ext,
+            },
             other => other.clone(),
         })
     }

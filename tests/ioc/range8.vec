@@ -1,0 +1,9 @@
+# pycrate and rasn agree with ours on every random value. asn1c's ALIGNED
+# decoder aligns before an INTEGER of 129 to 255 values, which X.691
+# 11.5.7.1 makes an 8-bit bit-field, not aligned (only a range of 256 is,
+# 11.5.7.2): when the field starts off an octet boundary it reads the wrong
+# bits, and cannot read back even its own encoding (asn1c writes
+# PhaseQuality {128, deg1} as 40 20, X.691's and ours, and rejects 40 20).
+# Exactly256 is right in all three.
+deviates asn1c PhaseQuality
+deviates asn1c Signed

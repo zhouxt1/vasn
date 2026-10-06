@@ -1,0 +1,40 @@
+# Hand-derived from X.691 (02/2021) 14.2, 23.6 (the root index a constrained
+# whole number, lb 0, ub the root values less one) and 11.5.7.2, 11.5.7.3,
+# ALIGNED variant.
+#
+# 300 root values: two octets, octet-aligned.
+accept E300 0000 "e0"
+accept! E300 0100 "e256"  # asn1c: 9 bits, see below
+accept! E300 012b "e299"  # asn1c: 9 bits, see below
+reject! E300 012c  # index 300: no such value; asn1c: 9 bits
+reject E300 00  # the second octet missing
+# 256 root values: one octet, octet-aligned.
+accept E256 00 "f0"
+accept E256 ff "f255"
+# extensible: the extension bit, then padding, then the root index.
+accept! E300x 000005 "e5"  # asn1c: 9 bits, see below
+# an extension value: 1, then the normally small index 1, 0 000001 (11.6.1)
+accept E300x 81 "x2"
+# a CHOICE: the index, then the alternative.
+# an extension alternative: 1, the normally small index 0, then its open
+# type, octet-aligned, one octet, BOOLEAN TRUE
+accept! W 40000102 {"flag": true, "e": "e1", "f": "f2"}  # preamble bit (x absent), flag, padding, E300 e1, E256 f2; asn1c: 9 bits
+
+# asn1c (NativeEnumerated_aper.c, constr_CHOICE_aper.c) aligns an index
+# whose upper bound is 255 or more, then reads it in range_bits bits (9 for
+# 300 values) instead of 11.5.7.3's two octets; and it does not check the
+# padding. From 256 to 511 values its field is 9 bits.
+deviates asn1c E300
+deviates asn1c E300x
+deviates asn1c W
+
+# rasn 0.28 reads and writes an ENUMERATED root index of 256 or more values in
+# the bits the range needs, 9 for 300, and not octet-aligned (11.5.7.3: two
+# octets, aligned): `0100` it decodes as e2. Its CHOICE index is X.691's.
+deviates rasn E300
+deviates rasn E300x
+deviates rasn W
+# ... and rasn's encoder writes an INTEGER (0..256) or wider alternative
+# after a two-octet CHOICE index otherwise than X.691 (a256 = 1, `01000001`,
+# it sends as `0100000002`); it decodes X.691's. Alone, or after a short
+# index, it encodes such an INTEGER right.

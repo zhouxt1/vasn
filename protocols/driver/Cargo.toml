@@ -1,0 +1,10 @@
+[package]
+name = "driver"
+version = "0.1.0"
+edition = "2021"
+description = "a protocol's codecs, as protocols/check.sh and bench/ run them (mkmain.py writes its main.rs)"
+
+[profile.release]
+opt-level = 1
+
+[workspace]

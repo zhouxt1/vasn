@@ -1,0 +1,15 @@
+# INTEGER (0..18446744073709551615) against pycrate, asn1c and rasn: every
+# check against pycrate passes, in both variants.
+#
+# asn1c cannot hold the range: its UNALIGNED encoder and decoder stop on
+# an assertion (uper_support.c per__imax_range "Unreachable") and its
+# ALIGNED decoder rejects every value. rasn decodes the counters but its
+# JER printer stops at 2^63 - 1 ("Exceeds supported integer range"), and in
+# ALIGNED it does not octet-align a fixed OCTET STRING over two octets
+# (startTime, X.691 17.7), a deviation recorded for other modules too.
+deviates asn1c Counter
+deviates asn1c Report
+deviates asn1c Reports
+deviates rasn Counter
+deviates rasn Report
+deviates rasn Reports

@@ -14,6 +14,49 @@ impl Parser {
         Ok(Parser { toks: Lexer::tokenize(src)?, i: 0 })
     }
 
+    /// A parser over tokens already read, such as an information object's
+    /// body; `line` is where they came from, for messages.
+    pub fn from_tokens(toks: &[Tok], line: usize) -> Self {
+        let mut v: Vec<(Tok, usize)> = toks.iter().map(|t| (t.clone(), line)).collect();
+        v.push((Tok::Eof, line));
+        Parser { toks: v, i: 0 }
+    }
+
+    pub fn at_end(&self) -> bool {
+        matches!(self.peek(), Tok::Eof)
+    }
+
+    pub fn peek_tok(&self) -> &Tok {
+        self.peek()
+    }
+
+    pub fn next_tok(&mut self) -> Tok {
+        self.bump()
+    }
+
+    /// The tokens of a `{ ... }`, without the outer braces; the parser is
+    /// at the `{`.
+    pub fn braced_tokens(&mut self) -> P<Vec<Tok>> {
+        self.expect(&Tok::LBrace)?;
+        let mut out = Vec::new();
+        let mut depth = 1;
+        loop {
+            let t = self.bump();
+            match t {
+                Tok::LBrace => depth += 1,
+                Tok::RBrace => {
+                    depth -= 1;
+                    if depth == 0 {
+                        return Ok(out);
+                    }
+                }
+                Tok::Eof => return Err("unterminated braces".into()),
+                _ => {}
+            }
+            out.push(t);
+        }
+    }
+
     fn peek(&self) -> &Tok {
         &self.toks[self.i].0
     }
@@ -125,6 +168,7 @@ impl Parser {
             return Err(format!("module {name}: expected END"));
         }
         Ok(Module {
+            dispatch: std::collections::HashMap::new(),
             name,
             env: ModEnv { tag_default, ext_implied },
             envs: std::collections::HashMap::new(),
@@ -204,12 +248,23 @@ impl Parser {
     /// no encoding depends on one.
     fn parse_assignment(&mut self) -> P<Option<Assignment>> {
         let name = self.word()?;
-        // parameterised type: Name { P1, P2 } ::= ...
+        // an information object class: NAME ::= CLASS { ... } (X.681 9)
+        if self.peek() == &Tok::Assign && matches!(self.peek_at(1), Tok::Word(w) if w == "CLASS") {
+            self.bump();
+            self.bump();
+            return self.parse_class(name).map(Some);
+        }
+        // parameterised type: Name { P1, P2 } ::= ...; a parameter may have
+        // a governor, `CLASS : Param` or `INTEGER : bound` (X.683 8.4)
         if self.peek() == &Tok::LBrace && self.looks_like_params() {
             self.expect(&Tok::LBrace)?;
             let mut params = Vec::new();
             loop {
-                params.push(self.word()?);
+                let mut p = self.word()?;
+                if self.eat(&Tok::Colon) {
+                    p = self.word()?;
+                }
+                params.push(p);
                 if !self.eat(&Tok::Comma) {
                     break;
                 }
@@ -230,13 +285,38 @@ impl Parser {
             };
             return Ok(Some(Assignment::Value { name, value: v }));
         }
+        // an information object set, `Name CLASS ::= { ... }` (X.681 12),
+        // or a value set assignment, which reads the same
+        if name.starts_with(|c: char| c.is_ascii_uppercase())
+            && matches!(self.peek(), Tok::Word(_))
+            && self.peek_at(1) == &Tok::Assign
+            && self.peek_at(2) == &Tok::LBrace
+        {
+            let class = self.word()?;
+            self.expect(&Tok::Assign)?;
+            let body = self.braced_tokens()?;
+            return Ok(Some(Assignment::ObjectSet { name, class, body }));
+        }
         // any other value assignment (X.680 16.2): a value reference begins
-        // with a lower-case letter
+        // with a lower-case letter. An integer of a named type, `id-X
+        // ProtocolIE-ID ::= 10`, is kept, as is an information object,
+        // `name CLASS ::= { ... }` (X.681 11); other values are dropped
         if name.starts_with(|c: char| c.is_ascii_lowercase()) && self.peek() != &Tok::Assign {
+            let class = match (self.peek(), self.peek_at(1)) {
+                (Tok::Word(w), Tok::Assign) => Some(w.clone()),
+                _ => None,
+            };
             self.parse_type()?;
             self.expect(&Tok::Assign)?;
             if self.peek() == &Tok::LBrace {
+                if let Some(class) = class {
+                    let body = self.braced_tokens()?;
+                    return Ok(Some(Assignment::Object { name, class, body }));
+                }
                 self.skip_braced();
+            } else if let Tok::Int(v) = self.peek().clone() {
+                self.bump();
+                return Ok(Some(Assignment::Value { name, value: v }));
             } else {
                 self.bump();
             }
@@ -245,6 +325,94 @@ impl Parser {
         self.expect(&Tok::Assign)?;
         let ty = self.parse_type()?;
         Ok(Some(Assignment::Type { name, ty }))
+    }
+
+    /// `CLASS { field, ... } [WITH SYNTAX { ... }]`, after `CLASS`. Fields
+    /// are `&name` (a type field) or `&name Type [UNIQUE] [OPTIONAL |
+    /// DEFAULT v]` (a fixed-type value field, X.681 9.5); the kinds 3GPP
+    /// does not use (object, object set, variable-type fields) are refused.
+    fn parse_class(&mut self, name: String) -> P<Assignment> {
+        self.expect(&Tok::LBrace)?;
+        let mut fields = Vec::new();
+        loop {
+            if self.peek() == &Tok::RBrace {
+                break;
+            }
+            let fname = match self.bump() {
+                Tok::Field(f) => f,
+                other => return Err(format!("line {}: class {name}: expected a field, found {other:?}", self.line())),
+            };
+            let type_field = fname.starts_with(|c: char| c.is_ascii_uppercase());
+            let ty = if type_field || matches!(self.peek(), Tok::Comma | Tok::RBrace)
+                || self.is_word("OPTIONAL") || self.is_word("DEFAULT")
+            {
+                if !type_field {
+                    return Err(format!("line {}: class {name}: &{fname} has no type", self.line()));
+                }
+                None
+            } else {
+                if matches!(self.peek(), Tok::Field(_)) {
+                    return Err(format!("line {}: class {name}: a variable-type value field (&{fname}) is not supported", self.line()));
+                }
+                Some(self.parse_type()?)
+            };
+            let unique = self.eat_word("UNIQUE");
+            let mut optional = false;
+            let mut default = None;
+            if self.eat_word("OPTIONAL") {
+                optional = true;
+            } else if self.eat_word("DEFAULT") {
+                let mut d = Vec::new();
+                while !matches!(self.peek(), Tok::Comma | Tok::RBrace | Tok::Eof) {
+                    d.push(self.bump());
+                }
+                default = Some(d);
+            }
+            fields.push(ClassField { name: fname, ty, unique, optional, default });
+            if !self.eat(&Tok::Comma) {
+                break;
+            }
+        }
+        self.expect(&Tok::RBrace)?;
+        let syntax = if self.is_word("WITH") && matches!(self.peek_at(1), Tok::Word(w) if w == "SYNTAX") {
+            self.bump();
+            self.bump();
+            self.expect(&Tok::LBrace)?;
+            let items = self.parse_syntax_items(&name)?;
+            self.expect(&Tok::RBrace)?;
+            Some(items)
+        } else {
+            None
+        };
+        Ok(Assignment::Class { name, fields, syntax })
+    }
+
+    fn parse_syntax_items(&mut self, class: &str) -> P<Vec<SynItem>> {
+        let mut items = Vec::new();
+        loop {
+            match self.peek().clone() {
+                Tok::RBrace | Tok::RBracket => return Ok(items),
+                Tok::LBracket => {
+                    self.bump();
+                    let inner = self.parse_syntax_items(class)?;
+                    self.expect(&Tok::RBracket)?;
+                    items.push(SynItem::Opt(inner));
+                }
+                Tok::Word(w) => {
+                    self.bump();
+                    items.push(SynItem::Word(w));
+                }
+                Tok::Field(f) => {
+                    self.bump();
+                    items.push(SynItem::Field(f));
+                }
+                Tok::Comma => {
+                    self.bump();
+                    items.push(SynItem::Word(",".into()));
+                }
+                other => return Err(format!("line {}: class {class}: unexpected {other:?} in WITH SYNTAX", self.line())),
+            }
+        }
     }
 
     /// `X { A } ::=` is a parameter list; `X ::= SEQUENCE { ... }` is not.
@@ -268,7 +436,25 @@ impl Parser {
     /// A type and whatever constraints follow it, applied serially
     /// (X.680 49.1: `Type Constraint Constraint ...`).
     pub fn parse_type(&mut self) -> P<Type> {
-        let ty = self.parse_type_inner()?;
+        let mut ty = self.parse_type_inner()?;
+        // a table constraint on a class field: `({Set})` or `({Set}{@key})`
+        // (X.682 10.3); `@.key` is the same key, counted from the
+        // innermost enclosing SEQUENCE (10.7)
+        if let Type::ClassField { set, key, .. } = &mut ty {
+            if self.peek() == &Tok::LParen && self.peek_at(1) == &Tok::LBrace {
+                self.bump();
+                self.bump();
+                *set = Some(self.word()?);
+                self.expect(&Tok::RBrace)?;
+                if self.eat(&Tok::LBrace) {
+                    self.expect(&Tok::At)?;
+                    self.eat(&Tok::Dot);
+                    *key = Some(self.word()?);
+                    self.expect(&Tok::RBrace)?;
+                }
+                self.expect(&Tok::RParen)?;
+            }
+        }
         let mut specs = Vec::new();
         while self.peek() == &Tok::LParen {
             specs.push(self.parse_constraint()?);
@@ -425,11 +611,29 @@ impl Parser {
         }
         // a type reference, possibly parameterised
         let name = self.word()?;
+        // `CLASS.&field` (X.681 14.1)
+        if self.peek() == &Tok::Dot && matches!(self.peek_at(1), Tok::Field(_)) {
+            self.bump();
+            let Tok::Field(field) = self.bump() else { unreachable!() };
+            return Ok(Type::ClassField { class: name, field, set: None, key: None });
+        }
         if self.peek() == &Tok::LBrace {
             self.expect(&Tok::LBrace)?;
             let mut args = Vec::new();
             loop {
-                args.push(self.word()?);
+                // an actual parameter is a type, a value, or an object set
+                // in braces, `{ {IEs} }` (X.683 9.2)
+                let a = match self.bump() {
+                    Tok::Word(w) => w,
+                    Tok::Int(n) => n.to_string(),
+                    Tok::LBrace => {
+                        let w = self.word()?;
+                        self.expect(&Tok::RBrace)?;
+                        w
+                    }
+                    other => return Err(format!("line {}: unexpected {other:?} as an actual parameter", self.line())),
+                };
+                args.push(a);
                 if !self.eat(&Tok::Comma) {
                     break;
                 }
@@ -643,6 +847,7 @@ impl Parser {
     fn parse_num(&mut self) -> P<Num> {
         match self.bump() {
             Tok::Int(n) => Ok(Num::Lit(n)),
+            Tok::BigInt(n) => Ok(Num::Big(n)),
             Tok::Word(w) => Ok(Num::Ref(w)),
             other => Err(format!("line {}: expected a bound, found {other:?}", self.line())),
         }
@@ -832,6 +1037,7 @@ impl Parser {
     fn parse_bound_or_value(&mut self) -> P<Result<Bound, CValue>> {
         Ok(match self.bump() {
             Tok::Int(n) => Ok(Bound::Val(Num::Lit(n))),
+            Tok::BigInt(n) => Ok(Bound::Val(Num::Big(n))),
             Tok::Word(w) if w == "MIN" => Ok(Bound::Min),
             Tok::Word(w) if w == "MAX" => Ok(Bound::Max),
             Tok::Word(w) if w == "TRUE" => Err(CValue::Bool(true)),

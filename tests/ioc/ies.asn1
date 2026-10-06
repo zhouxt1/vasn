@@ -1,0 +1,99 @@
+-- The 3GPP application protocols' pattern (TS 38.413 9.4.7), cut down:
+-- a class, an IE container parameterised by an object set, procedures
+-- whose messages are selected by a procedure code.
+Ies DEFINITIONS AUTOMATIC TAGS ::= BEGIN
+
+Criticality ::= ENUMERATED { reject, ignore, notify }
+Presence ::= ENUMERATED { optional, conditional, mandatory }
+ProtocolIE-ID ::= INTEGER (0..65535)
+ProcedureCode ::= INTEGER (0..255)
+maxProtocolIEs INTEGER ::= 65535
+
+id-UE-ID ProtocolIE-ID ::= 10
+id-Cause ProtocolIE-ID ::= 15
+id-Name ProtocolIE-ID ::= 300
+id-Setup ProcedureCode ::= 21
+id-Release ProcedureCode ::= 41
+
+IES ::= CLASS {
+    &id          ProtocolIE-ID UNIQUE,
+    &criticality Criticality,
+    &Value,
+    &presence    Presence
+}
+WITH SYNTAX {
+    ID &id
+    CRITICALITY &criticality
+    TYPE &Value
+    PRESENCE &presence
+}
+
+ProtocolIE-Container {IES : IEsSetParam} ::=
+    SEQUENCE (SIZE (0..maxProtocolIEs)) OF ProtocolIE-Field {{IEsSetParam}}
+
+ProtocolIE-Field {IES : IEsSetParam} ::= SEQUENCE {
+    id          IES.&id          ({IEsSetParam}),
+    criticality IES.&criticality ({IEsSetParam}{@id}),
+    value       IES.&Value       ({IEsSetParam}{@id})
+}
+
+UE-ID ::= INTEGER (0..4294967295)
+Cause ::= CHOICE { radio ENUMERATED { a, b, ... }, misc INTEGER (0..7), ... }
+Name ::= PrintableString (SIZE (1..150, ...))
+
+Setup ::= SEQUENCE {
+    protocolIEs ProtocolIE-Container { {SetupIEs} },
+    ...
+}
+SetupIEs IES ::= {
+    { ID id-UE-ID CRITICALITY reject TYPE UE-ID PRESENCE mandatory } |
+    { ID id-Name  CRITICALITY ignore TYPE Name  PRESENCE optional },
+    ...
+}
+
+Release ::= SEQUENCE {
+    protocolIEs ProtocolIE-Container { {ReleaseIEs} },
+    ...
+}
+ReleaseIEs IES ::= {
+    { ID id-UE-ID  CRITICALITY reject TYPE UE-ID PRESENCE mandatory } |
+    { ID id-Cause  CRITICALITY ignore TYPE Cause PRESENCE mandatory },
+    ...
+}
+
+PROCEDURE ::= CLASS {
+    &InitiatingMessage,
+    &SuccessfulOutcome OPTIONAL,
+    &procedureCode ProcedureCode UNIQUE,
+    &criticality Criticality DEFAULT ignore
+}
+WITH SYNTAX {
+    INITIATING MESSAGE &InitiatingMessage
+    [SUCCESSFUL OUTCOME &SuccessfulOutcome]
+    PROCEDURE CODE &procedureCode
+    [CRITICALITY &criticality]
+}
+
+setup PROCEDURE ::= {
+    INITIATING MESSAGE Setup
+    PROCEDURE CODE id-Setup
+    CRITICALITY reject
+}
+release PROCEDURE ::= {
+    INITIATING MESSAGE Release
+    PROCEDURE CODE id-Release
+    CRITICALITY ignore
+}
+PROCEDURES PROCEDURE ::= { setup | release, ... }
+
+PDU ::= CHOICE {
+    initiatingMessage InitiatingMessage,
+    ...
+}
+InitiatingMessage ::= SEQUENCE {
+    procedureCode PROCEDURE.&procedureCode ({PROCEDURES}),
+    criticality   PROCEDURE.&criticality   ({PROCEDURES}{@procedureCode}),
+    value         PROCEDURE.&InitiatingMessage ({PROCEDURES}{@procedureCode})
+}
+
+END

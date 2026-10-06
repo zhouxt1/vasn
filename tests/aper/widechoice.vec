@@ -1,0 +1,45 @@
+# Hand-derived from X.691 (02/2021) 14.2, 23.6 (the root index a constrained
+# whole number, lb 0, ub the root values less one) and 11.5.7.2, 11.5.7.3,
+# ALIGNED variant.
+#
+# 300 root values: two octets, octet-aligned.
+# 256 root values: one octet, octet-aligned.
+# extensible: the extension bit, then padding, then the root index.
+# an extension value: 1, then the normally small index 1, 0 000001 (11.6.1)
+# a CHOICE: the index, then the alternative.
+accept! C300 000180 {"a1": true}  # asn1c: 9 bits, see below
+accept C300 0000 {"a0": 0}
+accept! C300 012a0000 {"a298": 0}  # INTEGER (0..298) of value 0: 9 bits after the index; asn1c: 9 bits
+reject! C300 012c  # asn1c: 9 bits, see below
+accept C256 ff {"b255": null}
+accept! C300x 00000380 {"a3": true}  # asn1c: 9 bits, see below
+# an extension alternative: 1, the normally small index 0, then its open
+# type, octet-aligned, one octet, BOOLEAN TRUE
+accept C300x 800180 {"y1": true}
+# flag, padding, E300 e1, C256 b2 (no OPTIONAL, so no preamble)
+accept! W2 80000102 {"flag": true, "e": "e1", "c": {"b2": null}}  # asn1c: 9 bits, see below
+
+# asn1c (NativeEnumerated_aper.c, constr_CHOICE_aper.c) aligns an index
+# whose upper bound is 255 or more, then reads it in range_bits bits (9 for
+# 300 values) instead of 11.5.7.3's two octets; and it does not check the
+# padding. From 256 to 511 values its field is 9 bits.
+deviates asn1c C300
+deviates asn1c C300x
+deviates asn1c W2
+
+# rasn 0.28 reads and writes an ENUMERATED root index of 256 or more values in
+# the bits the range needs, 9 for 300, and not octet-aligned (11.5.7.3: two
+# octets, aligned): `0100` it decodes as e2. Its CHOICE index is X.691's.
+deviates rasn W2
+# ... and rasn's encoder writes an INTEGER (0..256) or wider alternative
+# after a two-octet CHOICE index otherwise than X.691 (a256 = 1, `01000001`,
+# it sends as `0100000002`); it decodes X.691's. Alone, or after a short
+# index, it encodes such an INTEGER right.
+deviates-encode rasn C300
+deviates-encode rasn C300x
+
+# the ENUMERATEDs W2 holds: see wide.vec
+deviates asn1c E300
+deviates asn1c E300x
+deviates rasn E300
+deviates rasn E300x

@@ -1,0 +1,10 @@
+-- OBJECT IDENTIFIER and RELATIVE-OID (X.691 24, 25): BER contents octets
+-- (X.690 8.19, 8.20) behind a semi-constrained octet-count length.
+-- (not `Oid`: rasn-compiler names its OID constants with rasn's `Oid`, unqualified)
+Oids DEFINITIONS AUTOMATIC TAGS ::= BEGIN
+id-rsa OBJECT IDENTIFIER ::= { iso(1) member-body(2) us(840) rsadsi(113549) }
+ObjId ::= OBJECT IDENTIFIER
+RelOid ::= RELATIVE-OID
+S ::= SEQUENCE { a BOOLEAN, o OBJECT IDENTIFIER, r RELATIVE-OID OPTIONAL }
+L ::= SEQUENCE (SIZE (1..3)) OF OBJECT IDENTIFIER
+END

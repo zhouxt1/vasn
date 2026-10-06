@@ -1,0 +1,15 @@
+-- A constrained INTEGER of 129 to 255 values: 8 bits, a bit-field, not
+-- octet-aligned (X.691 11.5.7.1); only a range of exactly 256 is aligned
+-- (11.5.7.2). F1AP's PhaseQuality (TS 38.473 9.3.1.x), INTEGER (0..179),
+-- and NGAP's, E1AP's and XnAP's INTEGER (-127..127).
+Range8 DEFINITIONS AUTOMATIC TAGS ::= BEGIN
+-- as F1AP has it, after the presence bit of an OPTIONAL (its iE-Extensions):
+-- the index then starts off an octet boundary, where asn1c aligns it
+PhaseQuality ::= SEQUENCE {
+    phaseQualityIndex       INTEGER (0..179),
+    phaseQualityResolution  ENUMERATED { deg0dot1, deg1, ... },
+    iE-Extensions           OCTET STRING OPTIONAL
+}
+Signed ::= SEQUENCE { a BOOLEAN, v INTEGER (-127..127), b BOOLEAN }
+Exactly256 ::= SEQUENCE { a BOOLEAN, v INTEGER (0..255), b BOOLEAN }
+END

@@ -1,0 +1,16 @@
+# tests/x691/strings.asn1 in the ALIGNED variant: what differs from UPER.
+#
+# Vis ::= VisibleString (FROM ("A".."F")) (SIZE (1..3)): 6 characters, so
+# B = 3 and B2 = 4 bits each (30.5.2), indices since 'F' > 15 (30.5.4 b).
+# 3 x 4 = 12 < 16, so the characters are not octet-aligned (30.5.7).
+accept! Vis 9554 "FFF"  # len - 1 = 2 in 2 bits, then 0101 0101 0101. pycrate, asn1c align them
+deviates pycrate Vis
+deviates asn1c Vis
+# rasn 0.28, ALIGNED: a NumericString character it reads by its code, not its
+# index (30.5.4 b: "9" = 57 > 15), and without the alignment 30.5.7 gives 4 x
+# 4 = 16 bits; Vis it aligns, as pycrate and asn1c do; and One, which encodes
+# to no bits, it sends as no octets, where 11.1.4 makes a complete encoding
+# one zero octet
+deviates rasn Num
+deviates rasn Vis
+deviates-encode rasn One

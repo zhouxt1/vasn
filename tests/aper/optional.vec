@@ -1,0 +1,9 @@
+# examples/asn1/optional.asn1 in the ALIGNED variant. Found by
+# byte mutation, derived by hand from X.691 (02/2021).
+#
+# Filter ::= SEQUENCE {off Q DEFAULT dB0, maxCID INTEGER (1..16) DEFAULT 15,
+# on BOOLEAN}: the preamble 10 (off present), off 01 (dB0, its default), on
+# 0. 19.5: "For BASIC-PER, encodings of components marked DEFAULT shall
+# always be absent if the value to be encoded is the default value of a
+# simple type (see 3.7.25)", and an ENUMERATED is simple: not an encoding.
+reject! Filter 90  # asn1c, rasn, pycrate accept {"on":false}

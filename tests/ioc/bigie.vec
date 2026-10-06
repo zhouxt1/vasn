@@ -1,0 +1,8 @@
+# Random values against pycrate and asn1c. asn1c agrees with ours on every
+# value. pycrate cannot decode a container whose IE has an open type of 16K
+# octets or more (fragmented, X.691 11.9.3.8) followed by another IE: it
+# cannot read back its own encoding of [IE(16383 octets), IE(0 octets)] or
+# [IE(20000), IE(3)], which ours writes byte for byte as pycrate does.
+# asn1c decodes the content of an IE of an id it does not know as <absent>
+# and does not print it (xcheck counts those apart).
+deviates pycrate Msg

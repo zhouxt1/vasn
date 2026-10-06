@@ -62,6 +62,18 @@ impl<'a> Gen<'a> {
         ((raw << shift) as i64) >> shift
     }
 
+    /// A `u64` whose octet length is random too, 1 to 8, so that every
+    /// length of `INTEGER (0..18446744073709551615)` in ALIGNED is reached.
+    #[inline]
+    pub fn uwide(&mut self) -> u64 {
+        if self.edge() {
+            const E: [u64; 8] = [0, 1, 255, 256, 0xffff_ffff, 0x1_0000_0000, u64::MAX - 1, u64::MAX];
+            return E[self.bits(3) as usize];
+        }
+        let k = 1 + self.bits(3) as u32;
+        self.bits(8 * k)
+    }
+
     /// A value `>= lb` whose offset from `lb` has a random octet length
     /// (X.691 11.7).
     #[inline]

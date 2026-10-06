@@ -25,25 +25,19 @@ pub open spec fn uint_dec(n: nat) -> Dec<u64> {
 
 /// An n-bit sequence is the unique encoding of its own value.
 pub proof fn lemma_bits_roundtrip(s: Seq<bool>)
-    requires s.len() <= 56,
+    requires s.len() <= 64,
     ensures bits_seq(bits_val(s) as u64, s.len()) =~= s,
 {
     lemma_bits_val_bound(s);
-    crate::bits::prim_read::lemma_p2_mono(s.len(), 56);
-    assert(bits_val(s) < p2(56));
-    assert(p2(56) < 0x1_0000_0000_0000_0000nat) by {
-        crate::bits::prim_read::lemma_p2_64();
-        crate::bits::prim_read::lemma_p2_mono(56, 64);
-        lemma_p2_adds(56, 8);
-        lemma_p2_pos(56);
-        assert(p2(64) == p2(56) * 256);
-    }
+    crate::bits::prim_read::lemma_p2_mono(s.len(), 64);
+    crate::bits::prim_read::lemma_p2_64();
+    assert(bits_val(s) < 0x1_0000_0000_0000_0000nat);
     lemma_bits_seq_val(bits_val(s) as u64, s.len());
     lemma_bits_val_inj(bits_seq(bits_val(s) as u64, s.len()), s);
 }
 
 pub proof fn lemma_uint_format(n: nat)
-    requires 1 <= n <= 56,
+    requires 1 <= n <= 64,
     ensures is_format(uint_wf(n), uint_enc(n), uint_dec(n)),
 {
     let w = uint_wf(n);

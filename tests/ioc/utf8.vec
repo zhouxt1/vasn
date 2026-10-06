@@ -1,0 +1,9 @@
+# pycrate agrees with ours on every random value. asn1c and rasn apply a
+# UTF8String's SIZE as PER-visible, a constrained length, where X.691 10.3.7
+# and 30.6 make no constraint on it PER-visible (the length is unconstrained,
+# in octets): the deviation tests/x691/README.md records for UNALIGNED, here in
+# ALIGNED, on the type NGAP names use.
+deviates asn1c Name
+deviates asn1c Named
+deviates rasn Name
+deviates rasn Named

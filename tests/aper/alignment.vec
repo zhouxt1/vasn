@@ -1,0 +1,60 @@
+# Hand-derived from X.691 (02/2021) 11.9.3.3, 16, 17, 20, 30.5, ALIGNED variant.
+accept B4 c0a0 {"a":true,"s":{"value":"A0","length":3}}  # 1, len-1 = 2 in 2 bits, pad, 101 (16.11: aligned)
+accept B16f d5e680 {"a":true,"s":"ABCD"}  # 16.9: 16 bits, not aligned
+accept! B17f 80d5e680 {"a":true,"s":"D5E680"}  # 16.10: aligned
+accept O2 a012 {"a":true,"s":"12"}  # len 1 in 2 bits, pad, 12
+accept O2f 891a00 {"a":true,"s":"1234"}  # 17.6: two octets, not aligned
+accept! O3f 80123456 {"a":true,"s":"123456"}  # 17.7: aligned
+accept! S2 a0a100 {"a":true,"s":"AB"}  # 30.5.6: 2 x 8 = 16, not aligned
+accept S3 80414243 {"a":true,"s":"ABC"}  # 30.5.6: 24 > 16, aligned
+accept N4 a023 {"a":true,"s":"12"}  # 30.5.7: 4 x 4 = 16, aligned; '1' = 2, '2' = 3 (30.5.4 b)
+accept AZ 904849 {"a":true,"s":"HI"}  # 30.5.4 a: 8 bits in APER, so the codes themselves
+# 11.9.3.3 (and its NOTE 2): a length of 0 adds nothing more, padding included
+accept! E0 84 {"a":true,"s":"","b":true}  # 1, 0000, 1. pycrate, asn1c pad after the length: 1, 0000, 000, 1
+accept! E1 84 {"a":true,"s":{"value":"","length":0},"b":true}  # pycrate, asn1c pad
+accept! E2 84 {"a":true,"s":"","b":true}  # pycrate, asn1c pad
+accept! E3 84 {"a":true,"s":[],"b":true}  # 20.6: a SEQUENCE OF is never padded
+# 30.5.7: variable size, aligned only if aub x b >= 16; 30.5.6: fixed, only if > 16
+accept! N3 c460 {"a":true,"s":"12"}  # 3 x 4 = 12: 1, 10, 0010 0011, not aligned. pycrate, asn1c align
+accept! N3f 91a4 {"a":true,"s":"123","b":true}  # 3 x 4 = 12, fixed: not aligned. pycrate, asn1c align
+accept! AB 98 {"a":true,"s":"BA"}  # N = 2: B = B2 = 1 bit (30.5.2), 8 x 1 < 16: 1, 001, 1, 0. pycrate aligns; asn1c aligns and uses 2 bits
+
+# pycrate pads after every variable length and after a fixed one of more than
+# 2 characters, whatever the character width; asn1c after every variable
+# length, and it gives a 2-character alphabet 2 bits a character.
+deviates pycrate E0
+deviates asn1c E0
+deviates pycrate E1
+deviates asn1c E1
+deviates pycrate E2
+deviates asn1c E2
+deviates pycrate N3
+deviates asn1c N3
+deviates pycrate N3f
+deviates asn1c N3f
+deviates pycrate AB
+deviates asn1c AB
+
+# rasn 0.28's ALIGNED codec departs from the octet alignment of X.691 in both
+# directions. Its decoder does not align a fixed-size BIT STRING of more than
+# 16 bits (16.10: B17f) or OCTET STRING of more than two octets (17.7: O3f),
+# aligns an IA5String of 16 bits and a NumericString of 12 (30.5.6: S2, N3f),
+# reads O255's one-octet length (11.5.7.2) without its padding, pads after a
+# zero length (11.9.3.3: E0 to E3) and aligns a SEQUENCE OF BOOLEAN's elements
+# (20.6: L). Its encoder does not align a length of range 257 to 64K (11.5.7.3:
+# O300, LBig, NGAP's containers), an INTEGER (0..1000) element (L2f, E3) or a
+# NumericString of 4 x 4 = 16 bits (30.5.7: N4); it decodes those right.
+deviates rasn B17f
+deviates rasn O3f
+deviates rasn S2
+deviates rasn N3f
+deviates rasn O255
+deviates rasn E0
+deviates rasn E1
+deviates rasn E2
+deviates rasn E3
+deviates rasn L
+deviates-encode rasn O300
+deviates-encode rasn LBig
+deviates-encode rasn L2f
+deviates-encode rasn N4

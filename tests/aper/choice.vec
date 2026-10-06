@@ -1,0 +1,25 @@
+# Checked against the references at random only (examples/asn1/choice.asn1).
+#
+# rasn 0.28, ALIGNED: Carry's ids, SEQUENCE (SIZE (1..3)) OF Small, it reads
+# with its elements aligned (20.6: they are not), as alignment.vec's L.
+deviates rasn Carry
+
+# Found by byte mutation, derived by hand from X.691
+# (02/2021). Pet ::= CHOICE {cat, dog, ..., fish Colour, bird}: after the
+# extension bit, the index as a normally small number (23.8, 11.6), then the
+# alternative as an open type (11.2).
+#
+# 1, then 1 (11.6.2's long form), padding, length 1, 00: index 0 = fish,
+# which 11.6.1 puts in the short form (0 000000), then 01 00 (red).
+reject! Pet c001000100  # asn1c, rasn, pycrate accept {"fish":"red"}
+# 1, 1, padding, and a length of 0: the index in no octets. 11.7.4 wants a
+# minimum octet encoding (11.3.6), unique: 0 in no octets would be a second
+# encoding of 00.
+reject! Pet c0000100  # asn1c, pycrate accept {"fish":"red"}; rasn rejects
+# 1, 0 000000 (fish), and the open type's length in the two-octet form of
+# 11.9.3.7, 80 01, for 1: 11.9.3.6 puts a length up to 127 in one octet.
+reject! Pet 80800100  # asn1c, rasn, pycrate accept {"fish":"red"}
+# Lone ::= CHOICE {only BOOLEAN, ...}: 1, 0 000000 (index 0), padding, 01 00:
+# an alternative a newer version added (23.8), which ours keeps as its
+# octets (OVERVIEW.md §1); JER has no form for it.
+accept! Lone 800100 {"?unknown-extension":{"index":0,"octets":"00"}}  # asn1c, rasn reject a newer version's alternative; pycrate decodes it but cannot print it

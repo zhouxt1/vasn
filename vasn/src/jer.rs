@@ -18,6 +18,12 @@ pub fn jer_int(v: i64, o: &mut String) {
     o.push_str(&v.to_string());
 }
 
+/// X.697 21, for an INTEGER whose values are all of `u64`'s.
+#[inline]
+pub fn jer_uint(v: u64, o: &mut String) {
+    o.push_str(&v.to_string());
+}
+
 /// X.697 26.
 #[inline]
 pub fn jer_null(o: &mut String) {

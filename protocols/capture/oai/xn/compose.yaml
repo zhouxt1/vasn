@@ -1,0 +1,43 @@
+# three monolithic gNBs, each listing the other two as Xn neighbours (OAI's
+# xn-simulator configurations, on the OAI 5GC's network); no UEs
+services:
+    gnb0:
+        image: oaisoftwarealliance/oai-gnb:develop
+        privileged: true
+        container_name: xn-gnb0
+        environment:
+            USE_ADDITIONAL_OPTIONS: --rfsim --log_config.global_log_options level,nocolor,time
+            ASAN_OPTIONS: detect_leaks=0
+        networks:
+            public_net:
+                ipv4_address: 192.168.70.161
+        volumes:
+            - ./gnb0.conf:/opt/oai-gnb/etc/gnb.conf
+    gnb1:
+        image: oaisoftwarealliance/oai-gnb:develop
+        privileged: true
+        container_name: xn-gnb1
+        environment:
+            USE_ADDITIONAL_OPTIONS: --rfsim --log_config.global_log_options level,nocolor,time
+            ASAN_OPTIONS: detect_leaks=0
+        networks:
+            public_net:
+                ipv4_address: 192.168.70.162
+        volumes:
+            - ./gnb1.conf:/opt/oai-gnb/etc/gnb.conf
+    gnb2:
+        image: oaisoftwarealliance/oai-gnb:develop
+        privileged: true
+        container_name: xn-gnb2
+        environment:
+            USE_ADDITIONAL_OPTIONS: --rfsim --log_config.global_log_options level,nocolor,time
+            ASAN_OPTIONS: detect_leaks=0
+        networks:
+            public_net:
+                ipv4_address: 192.168.70.163
+        volumes:
+            - ./gnb2.conf:/opt/oai-gnb/etc/gnb.conf
+networks:
+    public_net:
+        name: oai-cn5g-public-net
+        external: true

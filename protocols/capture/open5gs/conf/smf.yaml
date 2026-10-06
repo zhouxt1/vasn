@@ -1,0 +1,30 @@
+logger:
+  path:
+    file: /tmp/smf.log
+global:
+smf:
+  sbi:
+    server:
+    - address: 127.0.0.4
+      port: 7777
+    client:
+      scp:
+      - uri: http://127.0.1.10:7777
+  pfcp:
+    server:
+    - address: 127.0.0.4
+    client:
+      upf:
+      - address: 127.0.0.7
+  gtpc:
+    server:
+    - address: 127.0.0.4
+  gtpu:
+    server:
+    - address: 127.0.0.4
+  session:
+  - subnet: 10.45.0.0/16
+    gateway: 10.45.0.1
+  dns:
+  - 8.8.8.8
+  mtu: 1400

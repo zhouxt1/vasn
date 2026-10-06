@@ -1,0 +1,9 @@
+# Hand-derived from X.691 (02/2021) 10.6.5 and 30.6, ALIGNED.
+accept Od 023d28 "=("
+accept Od 00 ""
+# the presence bit, BOOLEAN, padding, the length, the octets
+accept S c00141 {"b": true, "d": "A"}
+accept S 00 {"b": false}
+# pycrate cannot print an ObjectDescriptor (see strings2.vec)
+deviates pycrate Od
+deviates pycrate S

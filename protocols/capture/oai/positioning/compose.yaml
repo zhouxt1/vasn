@@ -1,0 +1,32 @@
+# a gNB with positioning (NRPPa toward the LMF) and one UE, on the OAI 5GC's
+# positioning deployment (doc/tutorial_resources/oai-cn5g/docker-compose-positioning.yaml)
+services:
+    oai-gnb:
+        image: oaisoftwarealliance/oai-gnb:develop
+        privileged: true
+        container_name: rfsim5g-oai-gnb
+        environment:
+            USE_ADDITIONAL_OPTIONS: -E --rfsim --log_config.global_log_options level,nocolor,time
+            ASAN_OPTIONS: detect_leaks=0
+        networks:
+            public_net:
+                ipv4_address: 192.168.70.151
+        volumes:
+            - ./gnb.pos.conf:/opt/oai-gnb/etc/gnb.conf
+    oai-nr-ue:
+        image: oaisoftwarealliance/oai-nr-ue:develop
+        privileged: true
+        container_name: rfsim5g-oai-nr-ue
+        environment:
+            USE_ADDITIONAL_OPTIONS: -E --rfsim -r 106 --numerology 1 -C 3619200000 --uicc0.imsi 001010000000003 --rfsimulator.[0].serveraddr 192.168.70.151 --log_config.global_log_options level,nocolor,time
+        depends_on:
+            - oai-gnb
+        networks:
+            public_net:
+                ipv4_address: 192.168.70.152
+        volumes:
+            - ../ci-scripts/conf_files/nrue.uicc.conf:/opt/oai-nr-ue/etc/nr-ue.conf
+networks:
+    public_net:
+        name: oai-cn5g-public-net
+        external: true

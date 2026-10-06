@@ -1,0 +1,4 @@
+# Must be the toolchain Verus compiled the NR crates with: rustc refuses
+# rlibs from any other version.
+[toolchain]
+channel = "1.98.1"

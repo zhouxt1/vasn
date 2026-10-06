@@ -35,6 +35,7 @@ fn size_label(sc: &SizeCons) -> String {
         SizeCons::None => "unconstrained".into(),
         SizeCons::Fixed(Num::Lit(_)) => "SIZE (n) literal".into(),
         SizeCons::Fixed(Num::Ref(_)) => "SIZE (n) value ref".into(),
+        SizeCons::Fixed(Num::Big(_)) => "SIZE (n) beyond 64 bits".into(),
         SizeCons::Range(Num::Lit(_), Num::Lit(_)) => "SIZE (lb..ub) literal".into(),
         SizeCons::Range(_, _) => "SIZE (lb..ub) value ref".into(),
         SizeCons::RangeExt(_, _) => "SIZE (lb..ub, ...) extensible".into(),
@@ -47,6 +48,7 @@ fn kind(t: &Type) -> String {
     match t {
         Type::Boolean => "BOOLEAN".into(),
         Type::Null => "NULL".into(),
+        Type::Never => "(recursion cut off)".into(),
         Type::ObjectId => "OBJECT IDENTIFIER".into(),
         Type::RelativeOid => "RELATIVE-OID".into(),
         Type::Real => "REAL".into(),
@@ -56,6 +58,7 @@ fn kind(t: &Type) -> String {
         Type::Integer(IntCons::None) => "INTEGER unconstrained".into(),
         Type::Integer(IntCons::Semi(_)) => "INTEGER (lb..MAX)".into(),
         Type::Integer(IntCons::SemiExt(_) | IntCons::NoneExt) => "INTEGER, extensible, semi- or unconstrained".into(),
+        Type::Integer(IntCons::U64) => "INTEGER (0..18446744073709551615)".into(),
         Type::Enumerated(_, None) => "ENUMERATED inline".into(),
         Type::Enumerated(_, _) => "ENUMERATED inline, extensible".into(),
         Type::BitString(_) => "BIT STRING".into(),
@@ -74,12 +77,16 @@ fn kind(t: &Type) -> String {
         Type::SequenceOf(_, _) => "SEQUENCE OF inline".into(),
         Type::Ref(_) => "reference to a named type".into(),
         Type::ParamRef(_, _) => "parameterised reference".into(),
+        Type::ClassField { .. } => "information object class field (unresolved)".into(),
+        Type::Dispatch { .. } => "open type, by a component relation constraint".into(),
+        Type::Keyed { .. } => "SEQUENCE keyed by a component relation constraint".into(),
         Type::Constrained(..) => "constrained (unresolved)".into(),
         Type::Invalid(_) => "invalid".into(),
         Type::EnumeratedNum(..) => "ENUMERATED, numbered".into(),
         Type::Tagged(..) => "tagged".into(),
         Type::Set(..) | Type::SetOf(..) => "SET (unresolved)".into(),
         Type::Contains(_) => "OCTET STRING (CONTAINING T), decoded".into(),
+        Type::Open(_) => "open type, of a known type".into(),
     }
 }
 
@@ -199,6 +206,28 @@ pub fn report(module: &Module) {
     show_n("OPTIONAL+DEFAULT fields per SEQUENCE", &st.opt_count);
     show_n("CHOICE alternative counts", &st.choice_width);
     show("SEQUENCE extension additions", &st.additions);
+    if !module.dispatch.is_empty() {
+        let mut by: std::collections::BTreeMap<String, usize> = std::collections::BTreeMap::new();
+        let mut biggest: Vec<(usize, String)> = Vec::new();
+        for ((set, field), t) in &module.dispatch {
+            let k = match (t.alts.len(), t.ext) {
+                (0, true) => "no objects, extensible (every key kept as octets)".to_string(),
+                (0, false) => "no objects, not extensible (nothing decodes)".to_string(),
+                (_, true) => "objects, extensible".to_string(),
+                (_, false) => "objects, not extensible".to_string(),
+            };
+            *by.entry(k).or_default() += 1;
+            biggest.push((t.alts.len(), format!("{set}.&{field}")));
+        }
+        println!("\nopen types selected by a component relation constraint  (total {})", module.dispatch.len());
+        for (k, n) in &by {
+            println!("  {n:6}  {k}");
+        }
+        biggest.sort();
+        for (n, s) in biggest.iter().rev().take(5) {
+            println!("  largest: {s}, {n} objects");
+        }
+    }
     if !st.mandatory_adds.is_empty() {
         println!("\nmandatory additions, alone or in a group:");
         for m in &st.mandatory_adds {

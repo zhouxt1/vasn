@@ -1,0 +1,15 @@
+# Hand-derived from X.691 (02/2021), ALIGNED: v, 3 bits (11.5.7.1); the count
+# of kids, 2 bits (20.6, 11.9.4.1: a constrained whole number under 64K,
+# not aligned), then each kid; padding to the octet (11.1.3).
+#
+# The 10-deep chain, 08421084210800, is X.691's but not ours (vasnc unrolls 8
+# levels: recursive.asn1); every reference accepts it.
+#
+# asn1c reads all four as X.691 does. rasn 0.28 misreads a kid: 2a00 as
+# {"v":1,"kids":[{"v":0,"kids":[]}]}, f36180 with 3 and 4 as siblings, and
+# the chain as two levels; pycrate 0.7.11 fails on f36180 ("IndexError:
+# list index out of range"), a Tree whose first kid has a kid of its own.
+accept Tree a0 {"v":5,"kids":[]}  # 101 00, padding
+accept! Tree 2a00 {"v":1,"kids":[{"v":2,"kids":[]}]}  # 001 01 | 010 00
+accept! Tree f36180 {"v":7,"kids":[{"v":3,"kids":[{"v":4,"kids":[]}]},{"v":6,"kids":[]}]}  # 111 10 | 011 01 | 100 00 | 110 00
+accept! Tree 084210842100 {"v":0,"kids":[{"v":0,"kids":[{"v":0,"kids":[{"v":0,"kids":[{"v":0,"kids":[{"v":0,"kids":[{"v":0,"kids":[{"v":0,"kids":[{"v":0,"kids":[]}]}]}]}]}]}]}]}]}  # 0000 1 eight times, 000 00: nine levels, the deepest ours decodes

@@ -1,0 +1,11 @@
+-- A permitted alphabet given as a range of character quadruples (X.680
+-- 41.8), which asn1c and pycrate do not parse: checked against ours alone.
+Strings2Q DEFINITIONS AUTOMATIC TAGS ::= BEGIN
+UnivQ ::= UniversalString (FROM ({0,0,0,65}..{0,0,0,70}))
+BmpQ ::= BMPString (FROM ({0,0,4,16}..{0,0,4,79})) (SIZE (1..4))
+-- a constraint on a useful type is not PER-visible (X.691 10.3.16); both
+-- references fail on it
+GtS ::= GeneralizedTime (SIZE (15))
+-- ISO646String, VisibleString's other name: asn1c fails an assertion on it
+Iso ::= ISO646String (SIZE (2))
+END

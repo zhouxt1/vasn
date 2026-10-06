@@ -1,0 +1,30 @@
+-- Which fragmentation pycrate misreads: an OCTET STRING of 16K or more
+-- octets alone (Plain), or an open type of 16K octets or more made of small
+-- parts (Many, an IE of 1000 to 3000 short elements), or both (OneBig).
+BigIe2 DEFINITIONS AUTOMATIC TAGS ::= BEGIN
+Criticality ::= ENUMERATED { reject, ignore, notify }
+Presence ::= ENUMERATED { optional, conditional, mandatory }
+ProtocolIE-ID ::= INTEGER (0..65535)
+id-Many ProtocolIE-ID ::= 9
+id-Big ProtocolIE-ID ::= 7
+IES ::= CLASS {
+    &id          ProtocolIE-ID UNIQUE,
+    &criticality Criticality,
+    &Value,
+    &presence    Presence
+}
+WITH SYNTAX { ID &id CRITICALITY &criticality TYPE &Value PRESENCE &presence }
+ProtocolIE-Field {IES : IEsSetParam} ::= SEQUENCE {
+    id          IES.&id          ({IEsSetParam}),
+    criticality IES.&criticality ({IEsSetParam}{@id}),
+    value       IES.&Value       ({IEsSetParam}{@id})
+}
+Plain ::= SEQUENCE { a BOOLEAN, big OCTET STRING (SIZE (0..70000)), b BOOLEAN }
+Item ::= OCTET STRING (SIZE (16))
+Many ::= SEQUENCE (SIZE (1000..3000)) OF Item
+One ::= SEQUENCE { field ProtocolIE-Field { {OneIEs} }, b BOOLEAN }
+OneIEs IES ::= { { ID id-Many CRITICALITY reject TYPE Many PRESENCE mandatory } }
+Big ::= OCTET STRING (SIZE (0..70000))
+OneBig ::= SEQUENCE { field ProtocolIE-Field { {OneBigIEs} }, b BOOLEAN }
+OneBigIEs IES ::= { { ID id-Big CRITICALITY reject TYPE Big PRESENCE mandatory } }
+END

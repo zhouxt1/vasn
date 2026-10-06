@@ -1,0 +1,14 @@
+-- INTEGER (0..18446744073709551615), every u64: the 3GPP application
+-- protocols' usage counters (TS 38.413 VolumeTimedReport-Item). 64 bits in
+-- UNALIGNED (X.691 11.5.6); in ALIGNED the indefinite length case, 1..8
+-- octets after a 3-bit count (11.5.7.4).
+U64 DEFINITIONS AUTOMATIC TAGS ::= BEGIN
+Counter ::= INTEGER (0..18446744073709551615)
+Report ::= SEQUENCE {
+    startTime  OCTET STRING (SIZE (4)),
+    usageUL    INTEGER (0..18446744073709551615),
+    usageDL    Counter,
+    flag       BOOLEAN
+}
+Reports ::= SEQUENCE (SIZE (1..2)) OF Report
+END

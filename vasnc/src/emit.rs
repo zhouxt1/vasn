@@ -6,11 +6,17 @@
 //! structure per type, which is what keeps solver time per type bounded.
 use crate::ast::*;
 use std::collections::HashMap;
+use std::sync::atomic::{AtomicBool, Ordering};
 
-/// Whether the output is ALIGNED PER. It never is in this release, which is
-/// UNALIGNED only; the branches it guards are left for the ALIGNED variant.
-pub(crate) const fn aper() -> bool {
-    false
+/// Whether the output is ALIGNED PER. Set once, from `--aper`, before `emit`.
+static APER: AtomicBool = AtomicBool::new(false);
+
+pub fn set_aper(on: bool) {
+    APER.store(on, Ordering::Relaxed)
+}
+
+pub(crate) fn aper() -> bool {
+    APER.load(Ordering::Relaxed)
 }
 
 /// An encoder applied to a value. A UPER encoding is a function of the value,
@@ -122,7 +128,12 @@ pub(crate) fn collect_refs(t: &Type, out: &mut Vec<String>) {
                 collect_refs(a, out);
             }
         }
-        Type::SequenceOf(_, inner) | Type::Contains(inner) => collect_refs(inner, out),
+        Type::SequenceOf(_, inner) | Type::Contains(inner) | Type::Open(inner) => collect_refs(inner, out),
+        Type::Keyed { key, alts, unknown, .. } => {
+            collect_refs(key, out);
+            out.extend(alts.iter().map(|(_, _, r)| r.clone()));
+            out.push(unknown.clone());
+        }
         _ => {}
     }
 }
@@ -145,6 +156,7 @@ use vasn::aper::seqext::*;
 use vasn::aper::fraglist::*;
 use vasn::aper::complete::*;
 use vasn::aper::fast::*;
+use vasn::aper::wide::*;
 #[cfg(verus_keep_ghost)]
 use vasn::uper::fast::lemma_word_bit;
 use vasn::utf8::*;
@@ -242,6 +254,7 @@ fn width_for(count: u64) -> u32 {
 fn lit(n: &Num, values: &HashMap<String, i64>) -> Option<i64> {
     match n {
         Num::Lit(v) => Some(*v),
+        Num::Big(_) => None,
         Num::Ref(r) => values.get(r).copied(),
     }
 }
@@ -357,7 +370,7 @@ pub fn driver(out: &Output, module_file: &str) -> String {
         if inline_only.iter().any(|t| t.contains("proof")) {
             continue;
         }
-        let prim = matches!(d.rust_ty.as_str(), "bool" | "u8" | "u16" | "u32" | "i64" | "Null");
+        let prim = matches!(d.rust_ty.as_str(), "bool" | "u8" | "u16" | "u32" | "i64" | "u64" | "Null");
         let ty = &d.rust_ty;
         let rn = rustify(&d.asn);
         let (dec, enc) = if aper() {
@@ -837,6 +850,32 @@ fn resolve(
                 )],
             })
         }
+        // every u64: 64 bits (X.691 11.5.6), or in ALIGNED the indefinite
+        // length case, one to eight octets (11.5.7.4); `vasn::{uper,aper}::wide`
+        Type::Integer(IntCons::U64) => {
+            let what = "INTEGER (0..18446744073709551615)";
+            let (fmt, proof, rd, wr) = if aper() {
+                ("spec:cwn_u64_wf()|cwn_u64_enc()|cwn_u64_dec()", "lemma_cwn_u64_format();",
+                 "read_cwn_u64()", "write_cwn_u64({V})")
+            } else {
+                ("spec:uint_wf(64)|uint_enc(64)|uint_dec(64)", "lemma_uint_format(64);",
+                 "read_uint_wide(64)", "write_uint_wide(64, {V})")
+            };
+            Ok(Compiled {
+                owner: None,
+                spec_ty: None,
+                view: None,
+                rust_ty: "u64".into(),
+                fmt: fmt.into(),
+                proof_call: proof.into(),
+                decode: format!("{{ let o_ = {{R}}.{rd}; {{R}}.same(o_, \"{what}\") }}"),
+                encode: format!("{{W}}.{wr}"),
+                jer: "jer_uint(*{V}, {O})".into(),
+                arb: "{G}.uwide()".into(),
+                // the encoder's `uint_wf(64)` precondition holds of every u64
+                preamble: vec!["vasn::bits::prim_read::lemma_p2_64();".into()],
+            })
+        }
         Type::Integer(c) => int_with_length(c, values),
         Type::Ref(name) => match env.get(name) {
             Some(c) => Ok(c.clone()),
@@ -860,8 +899,9 @@ fn resolve(
         }
         Type::Str(..) => Err(Pending::Unsupported("internal: a character string is not a terminal".into())),
         Type::ObjectId | Type::RelativeOid | Type::Real => Err(Pending::Unsupported("internal: an OBJECT IDENTIFIER or REAL is not a terminal".into())),
+        Type::Never => Err(Pending::Unsupported("internal: the cut-off of a recursive type is not a terminal".into())),
         Type::Invalid(why) => Err(Pending::Unsupported(why.clone())),
-        Type::Contains(_) => Err(Pending::Unsupported("internal: CONTAINING is not hoisted".into())),
+        Type::Contains(_) | Type::Open(_) => Err(Pending::Unsupported("internal: CONTAINING is not hoisted".into())),
         Type::Constrained(..) | Type::EnumeratedNum(..) | Type::Tagged(..) | Type::Set(..) | Type::SetOf(..) => {
             Err(Pending::Unsupported("internal: not resolved by constraints.rs".into()))
         }
@@ -880,6 +920,15 @@ fn resolve(
         }),
         Type::ParamRef(_, _) => {
             Err(Pending::Unsupported("parameterised types are not implemented yet".into()))
+        }
+        Type::ClassField { class, field, .. } => {
+            Err(Pending::Unsupported(format!("internal: {class}.&{field} is not elaborated")))
+        }
+        Type::Dispatch { .. } => {
+            Err(Pending::Unsupported("internal: an open type selected by a component relation constraint outside a keyed SEQUENCE".into()))
+        }
+        Type::Keyed { .. } => {
+            Err(Pending::Unsupported("a keyed SEQUENCE is not implemented yet".into()))
         }
     }
 }
@@ -977,6 +1026,7 @@ fn int_with_length(c: &IntCons, values: &HashMap<String, i64>) -> Result<Compile
         arb,
     };
     let (root, root_arb, out_arb, what, p2f) = match c {
+        IntCons::U64 => return Err(Pending::Unsupported("internal: INTEGER (0..2^64-1) is not an INTEGER with a length".into())),
         IntCons::Semi(lb) => {
             let lb = v(lb)?;
             return Ok(term(
@@ -1109,7 +1159,7 @@ fn dec_of(c: &Compiled) -> String {
 /// type's own decoder reads a value off the front of whatever follows.
 fn complete_fns(name: &str, c: &Compiled) -> String {
     let rn = rustify(name);
-    let prim = matches!(c.rust_ty.as_str(), "bool" | "u8" | "u16" | "u32" | "i64" | "Null");
+    let prim = matches!(c.rust_ty.as_str(), "bool" | "u8" | "u16" | "u32" | "i64" | "u64" | "Null");
     let (wf, enc, dec) = (wf_of(c), enc_of(c), dec_of(c));
     let (rty, sty) = (&c.rust_ty, c.sty());
     let vv = c.view_of("v");
@@ -1170,6 +1220,7 @@ pub fn {rn}_encode_complete(w: &mut BitWriter, v: &{rty}) -> (ok: bool)
 mod aper_list;
 mod choice_ext;
 mod enum_ext;
+mod keyed;
 
 fn gen_type(
     name: &str,
@@ -1196,6 +1247,7 @@ fn gen_type(
         Type::ObjectId => Ok(gen_oid(name, false)),
         Type::RelativeOid => Ok(gen_oid(name, true)),
         Type::Real => Ok(gen_real(name)),
+        Type::Never => Ok(gen_never(name)),
         Type::Str(kind, _, _) if kind.octets() => Ok(gen_octet_chars(name)),
         Type::Str(k @ (StringKind::GeneralizedTime | StringKind::UtcTime), _, _) => {
             // X.691 10.6.5: the VisibleString, in X.690 11.7's or 11.8's form
@@ -1243,7 +1295,11 @@ fn gen_type(
         }
         Type::OctetString(sc) => gen_list_type(name, sc, byte_elem(), ListKind::Octets, values),
         Type::Sequence(root, Some(adds)) => gen_sequence_ext(name, root, adds, env, values),
-        Type::Contains(inner) => Ok(gen_contains(name, &resolve(inner, env, values)?)),
+        Type::Contains(inner) => Ok(gen_contains(name, &resolve(inner, env, values)?, false)),
+        Type::Open(inner) => Ok(gen_contains(name, &resolve(inner, env, values)?, true)),
+        Type::Keyed { key_name, key, alts, unknown, ext } => {
+            keyed::gen_keyed(name, key_name, key, alts, unknown, *ext, env, values)
+        }
         // A bare alias: reuse the target's format under a new Rust name.
         other => {
             let c = resolve(other, env, values)?;
@@ -1770,7 +1826,7 @@ fn gen_sequence_ext(
         ));
 
         let byref = !(parts[i].1.rust_ty == "bool" || parts[i].1.rust_ty == "i64"
-                      || parts[i].1.rust_ty == "Null");
+                      || parts[i].1.rust_ty == "u64" || parts[i].1.rust_ty == "Null");
         let inner_enc = parts[i].1.encode.replace("{W}", "sc")
             .replace("{V}", if byref { "x" } else { "*x" });
         s.push_str(&format!(
@@ -2333,7 +2389,7 @@ fn group_nonempty(wn: &str, g: &[Field], dfts: &[Option<String>], gc: &Compiled)
 /// (`int_range`, `bool`), used inline.
 fn restrict_wrap(rn: &str, base: &Compiled, spec_pred: &str, exec_bad: &str, why: &str, arb: &str) -> (String, Compiled) {
     let (bwf, benc, bdec) = (wf_of(base), enc_of(base), dec_of(base));
-    let prim = matches!(base.rust_ty.as_str(), "bool" | "u8" | "u16" | "u32" | "i64" | "Null");
+    let prim = matches!(base.rust_ty.as_str(), "bool" | "u8" | "u16" | "u32" | "i64" | "u64" | "Null");
     let bdecode = base.decode.replace("{R}", "r");
     // a primitive is passed by value, as its own encoder takes it
     let bencode = base.encode.replace("{W}", "w").replace("{V}", "v");
@@ -2628,8 +2684,13 @@ fn gen_sequence_ext_empty(
          \x20   Some((Null, Flg::DiffVer))\n}}\n\n"
     ));
 
+    // in ALIGNED, twice the default rlimit, as `gen_sequence_ext`'s: E2SM-RC's
+    // `RANParameter-ValueType-Choice-Structure`, unrolled, took 12 to 15 at its
+    // eighth level (the seven above it passed under 10), in the extension
+    // bitmap's subrange facts
+    let rl = if aper() { "#[verifier::rlimit(20)]\n" } else { "" };
     s.push_str(&format!(
-        "pub fn {rn}_decode(r: &mut BitReader) -> (res: Option<({rn}, Flg)>)\n\
+        "{rl}pub fn {rn}_decode(r: &mut BitReader) -> (res: Option<({rn}, Flg)>)\n\
          \x20   requires old(r).wf(),\n\
          \x20   ensures final(r).wf(), final(r).buf == old(r).buf, final(r).pos >= old(r).pos,\n\
          \x20       match res {{\n\
@@ -4348,6 +4409,11 @@ fn gen_sequence(
     for id in (0..nn).rev() {
         let (l, r) = bt.nodes[id];
         let me = Kid::Node(id);
+        // ALIGNED: twice the default rlimit. E1AP's GBR-QosInformation (four
+        // extensible 42-bit bit rates) went over at the default
+        if aper() {
+            s.push_str("#[verifier::rlimit(20)]\n");
+        }
         s.push_str(&format!(
             "pub fn {fnp}_enc_t{id}_run(w: &mut BitWriter{bmdecl_enc}, m: &{mty}) -> (ok: bool)\n\
              \x20   requires old(w).wf(), {}({}),\n\
@@ -4532,7 +4598,7 @@ fn field_decode(
 
 fn field_encode_expr(parts: &[(String, Compiled, Option<usize>)], dft: &[Option<String>], i: usize) -> String {
     let (fname, c, oj) = &parts[i];
-    let byref = !(c.rust_ty == "bool" || c.rust_ty == "i64" || c.rust_ty == "Null");
+    let byref = !(c.rust_ty == "bool" || c.rust_ty == "i64" || c.rust_ty == "u64" || c.rust_ty == "Null");
     if let Some(dv) = &dft[i] {
         // DEFAULT: omitted exactly when equal to the default
         let inner = c
@@ -4642,7 +4708,7 @@ fn gen_list_type(
     let eencode = elem
         .encode
         .replace("{W}", "w")
-        .replace("{V}", if ety == "bool" || ety == "u8" || ety == "u16" || ety == "u32" || ety == "i64" || ety == "Null" {
+        .replace("{V}", if ety == "bool" || ety == "u8" || ety == "u16" || ety == "u32" || ety == "i64" || ety == "u64" || ety == "Null" {
             "*x_"
         } else {
             "x_"
@@ -5243,6 +5309,40 @@ fn gen_real(name: &str) -> (String, Compiled) {
     (format!("{btext}{wtext}"), wc)
 }
 
+/// No value (`normalize::unroll_recursion`'s cut-off): NULL restricted to
+/// nothing. Its decoder rejects; its encoder, whose precondition no value
+/// meets, writes nothing and says so (a random value's generator may still
+/// hand it one).
+fn gen_never(name: &str) -> (String, Compiled) {
+    let rn = rustify(name);
+    let null = Compiled {
+        owner: None,
+        spec_ty: None,
+        view: None,
+        rust_ty: "Null".into(),
+        fmt: "null".into(),
+        proof_call: "lemma_null_format();".into(),
+        decode: "{ let o_ = {R}.read_null(); {R}.same(o_, \"NULL\") }".into(),
+        encode: "{W}.write_null({V})".into(),
+        preamble: vec![],
+        jer: "jer_null({O})".into(),
+        arb: "Null".into(),
+    };
+    let (text, mut c) = restrict_wrap(
+        &rn,
+        &null,
+        "|v: Null| false",
+        "true",
+        "a recursive type nested deeper than vasnc unrolls it",
+        "Null",
+    );
+    let body = "    w.write_null(v)\n}";
+    assert_eq!(text.matches(body).count(), 1);
+    let text = text.replace(body, "    false\n}");
+    c.rust_ty = "Null".into();
+    (text, c)
+}
+
 /// A string that is not known-multiplier, other than UTF8String (X.691 30.6):
 /// GeneralString, GraphicString, TeletexString, VideotexString,
 /// ObjectDescriptor. Its "base encoding" (X.690 8.23.5) is the octets of the
@@ -5500,7 +5600,7 @@ fn gen_list_frag(name: &str, lb: u64, ub: u64, elem: Compiled, kind: ListKind) -
     let eencode = elem
         .encode
         .replace("{W}", "w")
-        .replace("{V}", if ety == "bool" || ety == "u8" || ety == "u16" || ety == "u32" || ety == "i64" || ety == "Null" {
+        .replace("{V}", if ety == "bool" || ety == "u8" || ety == "u16" || ety == "u32" || ety == "i64" || ety == "u64" || ety == "Null" {
             "*x_"
         } else {
             "x_"
@@ -5930,10 +6030,12 @@ fn gen_int_const(name: &str, v: &Num, values: &HashMap<String, i64>) -> Result<(
 /// open type (11.2), so the format is `open(X)` and the code the one an
 /// extension addition gets, without the OPTIONAL around it. The value is the
 /// `X` itself, under an alias.
-fn gen_contains(name: &str, x: &Compiled) -> (String, Compiled) {
+/// `open`: an open type's JER is its value's (X.697 31), not X.697 25.4's
+/// `{"containing": ...}` of a contents constraint.
+fn gen_contains(name: &str, x: &Compiled, open: bool) -> (String, Compiled) {
     let rn = rustify(name);
     let (xwf, xenc, xdec) = (wf_of(x), enc_of(x), dec_of(x));
-    let prim = matches!(x.rust_ty.as_str(), "bool" | "u8" | "u16" | "u32" | "i64" | "Null");
+    let prim = matches!(x.rust_ty.as_str(), "bool" | "u8" | "u16" | "u32" | "i64" | "u64" | "Null");
     let rty = &x.rust_ty;
     let sty = x.sty();
     let vparam = if prim { rty.clone() } else { format!("&{rty}") };
@@ -6050,7 +6152,7 @@ pub fn {rn}_encode(w: &mut BitWriter, v: {vparam}) -> (ok: bool)
         encode: format!("{rn}_encode({{W}}, {{V}})"),
         preamble: vec![],
         // X.697 25.4: `{"containing": <the value's JER>}`
-        jer: format!("{{ {O}.push_str(\"{{\\\"containing\\\":\"); {jer}; {O}.push('}}'); }}", O = "{O}"),
+        jer: if open { jer.clone() } else { format!("{{ {O}.push_str(\"{{\\\"containing\\\":\"); {jer}; {O}.push('}}'); }}", O = "{O}") },
         ..x.clone()
     };
     (text, c)
@@ -6478,8 +6580,11 @@ fn gen_choice(
     }
 
     // ------------------------------------------------------------- encode
+    // one query for every alternative: NRPPa's OTDOACell-Information-Item,
+    // 21 of them, went over the default rlimit in ALIGNED (it takes 10 to 15)
+    let rl = if aper() && parts.len() >= 16 { "#[verifier::rlimit(40)]\n" } else { "" };
     s.push_str(&format!(
-        "pub fn {rn}_encode(w: &mut BitWriter, v: &{rn}) -> (ok: bool)\n\
+        "{rl}pub fn {rn}_encode(w: &mut BitWriter, v: &{rn}) -> (ok: bool)\n\
          \x20   requires old(w).wf(), {rn}_wf()({rn}_view(*v)),\n\
          \x20   ensures final(w).wf(), final(w).buf@.len() == old(w).buf@.len(),\n\
          \x20       ok ==> final(w).written() =~= old(w).written() + {},\n\
@@ -6500,7 +6605,7 @@ fn gen_choice(
         let inner = c
             .encode
             .replace("{W}", "w")
-            .replace("{V}", if c.rust_ty == "bool" || c.rust_ty == "i64" || c.rust_ty == "Null" { "*x_" } else { "x_" });
+            .replace("{V}", if c.rust_ty == "bool" || c.rust_ty == "i64" || c.rust_ty == "u64" || c.rust_ty == "Null" { "*x_" } else { "x_" });
         s.push_str(&format!("        {rn}::{an}(x_) => {inner},\n"));
         let _ = i;
     }

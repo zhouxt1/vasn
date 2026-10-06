@@ -68,7 +68,7 @@ pub(super) fn gen_sized(
     let eencode = elem
         .encode
         .replace("{W}", "w")
-        .replace("{V}", if ety == "bool" || ety == "u8" || ety == "u16" || ety == "u32" || ety == "i64" || ety == "Null" {
+        .replace("{V}", if ety == "bool" || ety == "u8" || ety == "u16" || ety == "u32" || ety == "i64" || ety == "u64" || ety == "Null" {
             "*x_"
         } else {
             "x_"
@@ -323,11 +323,15 @@ pub(super) fn gen_sized(
     // (`spinoff_prover`) `RF-Parameters.supportedBandListNR`'s did. And the
     // loop's `take`/`push` equality is proved apart (below): inline,
     // `IAB-IP-AddressAndTraffic-r16`'s went over at 100 after its module's
-    // other queries, though alone it took a second.
+    // other queries, though alone it took a second. 40: NGAP's
+    // ProtocolExtensionContainer {PDUSessionResourceModifyIndicationTransfer-ExtIEs}'s
+    // went over at 20, and at 100 after its module's other queries, though
+    // alone it took a second: its loop's invariant is an `==`, each step
+    // proved by `lemma_list_enc_step`, and it then took under 3.
     let lvl = lv("l@");
     s.push_str(&format!(
         "#[verifier::loop_isolation(false)]\n\
-         #[verifier::rlimit(20)]\n\
+         #[verifier::rlimit(40)]\n\
          pub fn {rn}_encode(w: &mut BitWriter, l: &{rn}) -> (ok: bool)\n\
          \x20   requires old(w).wf(), {rn}_wf()({lvl}),\n\
          \x20   ensures final(w).wf(), final(w).buf@.len() == old(w).buf@.len(),\n\
@@ -375,16 +379,17 @@ pub(super) fn gen_sized(
          \x20   while j_ < l.len()\n\
          \x20       invariant\n\
          \x20           w.wf(), j_ <= l@.len(), w.buf@.len() == old(w).buf@.len(),\n\
-         \x20           w.written() =~= mid + list_enc_rec(pm, {lvl}.take(j_ as int), {eenc}),\n\
+         \x20           w.written() == mid + list_enc_rec(pm, {lvl}.take(j_ as int), {eenc}),\n\
          \x20           pm == mid.len(),\n\
          \x20       decreases l@.len() - j_,\n\
          \x20   {{\n\
          \x20       let ghost pre = {lvl}.take(j_ as int);\n\
          \x20       let x_ = &l[j_];\n\
          {xfact}\
+         \x20       let ghost wo = w.written();\n\
          \x20       if !{eencode} {{ return false; }}\n\
          \x20       proof {{\n\
-         \x20           lemma_list_enc_push(pm, pre, {eenc}, {lvl}[j_ as int]);\n\
+         \x20           lemma_list_enc_step(mid, pm, pre, {eenc}, {lvl}[j_ as int], wo, w.written());\n\
          \x20           // proved apart: inline, the extensionality could take the\n\
          \x20           // whole rlimit, depending on the queries before it\n\
          \x20           assert({lvl}.take(j_ as int + 1) == pre.push({lvl}[j_ as int])) by {{\n\
@@ -461,7 +466,7 @@ pub(super) fn gen_frag(name: &str, lb: u64, ub: u64, elem: Compiled, kind: ListK
     let eencode = elem
         .encode
         .replace("{W}", "w")
-        .replace("{V}", if ety == "bool" || ety == "u8" || ety == "u16" || ety == "u32" || ety == "i64" || ety == "Null" {
+        .replace("{V}", if ety == "bool" || ety == "u8" || ety == "u16" || ety == "u32" || ety == "i64" || ety == "u64" || ety == "Null" {
             "*x_"
         } else {
             "x_"

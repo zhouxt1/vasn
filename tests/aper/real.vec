@@ -1,0 +1,56 @@
+# Hand-derived from X.691 (02/2021) 15 and X.690 8.5, 11.3, ALIGNED.
+#
+# plus zero: no contents octets (8.5.2)
+accept R 00 0
+# binary (8.5.7, 11.3.1): 1 S 00 00 FF, the exponent, then N, odd
+accept! R 03800001 1  # 1 x 2^0
+accept! R 0380ff01 0.5  # 1 x 2^-1
+accept! R 03c00003 -3
+accept! R 048100c803 4820814132776970826625886277023487807566608981348378505904128  # 3 x 2^200: a 2-octet exponent
+reject! R 03800002  # N even: M must be odd (11.3.1)
+reject! R 0480000001  # N with a leading zero octet: not the fewest
+reject! R 0481000101  # a 2-octet exponent that fits in one (8.5.7.4 d, 11.3.1)
+reject! R 0388000001  # a scaling factor F = 2 (11.3.1: F is 0)
+reject! R 03a00001  # base 8 (11.3.1: base 2)
+reject! R 058301000101  # the long exponent form for one octet
+reject R 0280  # no mantissa
+# the special values (8.5.9)
+accept! R 0140 "INF"
+accept! R 0141 "-INF"
+accept! R 0142 "NaN"
+accept! R 0143 "-0"
+reject R 0144
+# decimal, NR3 (8.5.8, 11.3.2): printed {"base10Value": ...} (X.697 23.4)
+accept! R 070331352e452d31 {"base10Value": 1.5}  # 15.E-1
+accept! R 0603312e452b30 {"base10Value": 1}  # 1.E+0
+accept! R 06032d352e4533 {"base10Value": -5000}  # -5.E3
+reject! R 08033135302e452d32  # 150.E-2: a mantissa ending in 0 (11.3.2.4)
+reject! R 060330352e4531  # 05.E1: beginning with 0
+reject! R 0603312e452b31  # 1.E+1: a plus sign on a non-zero exponent (11.3.2.6)
+reject! R 0503312e4530  # 1.E0: a zero exponent is +0
+# a constraint on REAL changes nothing (X.691 10.3.14)
+accept! RC 03800001 1
+accept! RC 0380ff01 0.5
+# BOOLEAN, padding, the length, the contents
+accept! S 0003800001 {"f": false, "r": 1}
+accept! S c00000 {"f": true, "r": 0, "o": 0}
+# wider than a binary64: N of 64 bits, and 2^1000 (exponent 03 e8)
+accept! R 0a8000ffffffffffffffff 18446744073709551615
+accept! R 048103e801 10715086071862673209484250490600018105614048117055336074437503883703510511249361224931983788156958581275946729175531468251871452856923140435984577574698574803934567774824230985421074605062371141877954182153046474983581941267398767559165543946077062914571196477686542167660429831652624386837205668069376
+
+# pycrate 0.7.11 decodes a binary REAL to twice its value (03800001, 1, as 2;
+# -3 as -6) and fails on the special values ("%i format: a real number is
+# required, not NoneType").
+deviates pycrate R
+deviates pycrate RC
+deviates pycrate S
+# asn1c decodes to a C double, and encodes that: base 10 becomes base 2
+# (X.691 15.1 keeps the base), and its binary form is not DER's (N = 71 it
+# sends as 00 47). Its values agree with X.691's within a double.
+deviates-encode asn1c R
+deviates-encode asn1c RC
+deviates-encode asn1c S
+# rasn 0.28 has no REAL in APER ("Decoder doesn't support `REAL` type").
+deviates rasn R
+deviates rasn RC
+deviates rasn S

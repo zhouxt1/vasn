@@ -1,0 +1,40 @@
+-- ALIGNED PER: SIZE-constrained lists (X.691 11.9.3.3, 16, 17, 20, 30.5),
+-- each after a BOOLEAN so that the padding in front of an aligned field shows.
+APER-Alignment DEFINITIONS AUTOMATIC TAGS ::=
+
+BEGIN
+
+B4 ::= SEQUENCE { a BOOLEAN, s BIT STRING (SIZE (1..4)) }       -- 16.11: aligned contents
+B16f ::= SEQUENCE { a BOOLEAN, s BIT STRING (SIZE (16)) }       -- 16.9: a plain bit-field
+B17f ::= SEQUENCE { a BOOLEAN, s BIT STRING (SIZE (17)) }       -- 16.10: aligned
+B0f ::= SEQUENCE { a BOOLEAN, s BIT STRING (SIZE (0)) }         -- 16.8: nothing
+O2 ::= SEQUENCE { a BOOLEAN, s OCTET STRING (SIZE (0..2)) }     -- 17.8: aligned, not when empty
+O2f ::= SEQUENCE { a BOOLEAN, s OCTET STRING (SIZE (2)) }       -- 17.6: a plain bit-field
+O3f ::= SEQUENCE { a BOOLEAN, s OCTET STRING (SIZE (3)) }       -- 17.7: aligned
+O300 ::= SEQUENCE { a BOOLEAN, s OCTET STRING (SIZE (0..300)) } -- two-octet length, aligned
+O255 ::= SEQUENCE { a BOOLEAN, s OCTET STRING (SIZE (0..255)) } -- one-octet length, aligned
+L ::= SEQUENCE { a BOOLEAN, s SEQUENCE (SIZE (0..10)) OF BOOLEAN }   -- 20.6: no alignment
+L2f ::= SEQUENCE { a BOOLEAN, s SEQUENCE (SIZE (2)) OF INTEGER (0..1000) }
+LBig ::= SEQUENCE { a BOOLEAN, s SEQUENCE (SIZE (1..65535)) OF BOOLEAN }  -- NGAP's containers
+S1 ::= SEQUENCE { a BOOLEAN, s IA5String (SIZE (0..2)) }        -- 30.5.7: 2 x 8 >= 16, aligned
+S2 ::= SEQUENCE { a BOOLEAN, s IA5String (SIZE (2)) }           -- 30.5.6: 2 x 8 = 16, not
+S3 ::= SEQUENCE { a BOOLEAN, s IA5String (SIZE (3)) }           -- 30.5.6: 24 > 16, aligned
+N4 ::= SEQUENCE { a BOOLEAN, s NumericString (SIZE (0..4)) }    -- 4 bits a character, 16: aligned
+N3 ::= SEQUENCE { a BOOLEAN, s NumericString (SIZE (0..3)) }    -- 12 < 16: not
+N5 ::= SEQUENCE { a BOOLEAN, s NumericString (SIZE (5)) }
+P ::= SEQUENCE { a BOOLEAN, s PrintableString (SIZE (1..8)) }
+AZ ::= SEQUENCE { a BOOLEAN, s IA5String (FROM ("A".."Z")) (SIZE (1..8)) }  -- 30.5.4 a: codes, 8 bits
+AB ::= SEQUENCE { a BOOLEAN, s IA5String (FROM ("AB")) (SIZE (1..8)) }      -- 1 bit, codes > 1: indices
+
+-- 11.9.3.3: a length of 0 adds nothing after it, padding included; the
+-- BOOLEAN after it shows whether any was added
+E0 ::= SEQUENCE { a BOOLEAN, s OCTET STRING (SIZE (0..10)), b BOOLEAN }
+E1 ::= SEQUENCE { a BOOLEAN, s BIT STRING (SIZE (0..10)), b BOOLEAN }
+E2 ::= SEQUENCE { a BOOLEAN, s IA5String (SIZE (0..10)), b BOOLEAN }
+E3 ::= SEQUENCE { a BOOLEAN, s SEQUENCE (SIZE (0..10)) OF INTEGER (0..1000), b BOOLEAN }
+N3f ::= SEQUENCE { a BOOLEAN, s NumericString (SIZE (3)), b BOOLEAN }  -- 30.5.6: 12 bits, not aligned
+
+-- 17.8, 11.9.3.5 to 11.9.3.8: no SIZE, so an unconstrained length, octet-aligned
+U ::= SEQUENCE { a BOOLEAN, s OCTET STRING, b BOOLEAN }
+
+END

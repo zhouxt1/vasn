@@ -1,0 +1,25 @@
+# Captured messages, one encoding per file (PROTO.tar.gz, PROTO/NAME/*.aper):
+# NAME, the type each is, and what uses it (check: check.sh; bench: bench/run.sh)
+ngap/bench                      NGAP-PDU                     check,bench   Open5GS 2.7.2 with UERANSIM 3.2.6 (3944), and OAI's split gNB with its 5G core (48)
+ngap/oai-handover               NGAP-PDU                     check         OAI: N2 handovers between two split gNBs
+ngap/oai-positioning            NGAP-PDU                     check         OAI: a gNB and its 5G core's LMF locating a UE
+f1ap/oai-split                  F1AP-PDU                     check,bench   OAI: CU-CP, three CU-UPs, three DUs, three UEs
+f1ap/oai-handover               F1AP-PDU                     check         OAI: N2 handovers between two split gNBs
+e1ap/oai-split                  E1AP-PDU                     check,bench   OAI: CU-CP, three CU-UPs, three DUs, three UEs
+e1ap/oai-handover               E1AP-PDU                     check         OAI: N2 handovers between two split gNBs
+xnap/oai-xn-setup               XnAP-PDU                     check         OAI: Xn Setup among three gNBs
+s1ap/oai-magma                  S1AP-PDU                     check,bench   OAI's eNB and LTE UE with Magma's MME: S1 Setup, attach, release
+e2ap/flexric-sample             E2AP-PDU                     check         FlexRIC's nearRT-RIC and four xApps, OAI's E2 agent: every message but RIC Indications, and every 80th Indication
+e2ap/flexric-bench              E2AP-PDU                     bench         the same run: every 13th of 266031 messages
+e42ap/flexric-sample            E2AP-PDU                     check         the same run, between the xApps and the RIC, sampled as e2ap's
+kpm/flexric-RANfunctionDefinition   E2SM-KPM-RANfunction-Description   check   the E2SM-KPM octets in that E2AP traffic (RAN function 2)
+kpm/flexric-EventTriggerDefinition  E2SM-KPM-EventTriggerDefinition    check
+kpm/flexric-ActionDefinition        E2SM-KPM-ActionDefinition          check
+kpm/flexric-IndicationMessage       E2SM-KPM-IndicationMessage         check,bench
+rc/flexric-RANfunctionDefinition    E2SM-RC-RANFunctionDefinition      check   the E2SM-RC octets in that E2AP traffic (RAN function 3)
+rc/flexric-EventTriggerDefinition   E2SM-RC-EventTrigger               check
+rc/flexric-ActionDefinition         E2SM-RC-ActionDefinition           check
+rc/flexric-IndicationHeader         E2SM-RC-IndicationHeader           check
+rc/flexric-IndicationMessage        E2SM-RC-IndicationMessage          check,bench
+rc/flexric-ControlHeader            E2SM-RC-ControlHeader              check
+rc/flexric-ControlMessage           E2SM-RC-ControlMessage             check

@@ -15,5 +15,6 @@ pub mod opentype;
 pub mod seqext;
 pub mod err;
 pub mod fast;
+pub mod wide;
 #[cfg(target_arch = "x86_64")]
 pub mod simd;

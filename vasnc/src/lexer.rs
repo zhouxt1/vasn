@@ -5,6 +5,9 @@ pub enum Tok {
     /// Identifier or keyword; hyphens are kept as written.
     Word(String),
     Int(i64),
+    /// an integer outside `i64`, as a bound may be: the 3GPP protocols'
+    /// counters are `INTEGER (0..18446744073709551615)`
+    BigInt(i128),
     BString(String),
     HString(String),
     Assign,     // ::=
@@ -34,6 +37,9 @@ pub enum Tok {
     Dot,
     /// `"..."`, a character string literal (X.680 12.14; `""` is a quote)
     CString(String),
+    /// `&name`, a field of an information object class (X.681 7.5, 7.6):
+    /// `&id` a value field, `&Value` a type field. The name is without `&`.
+    Field(String),
     Eof,
 }
 
@@ -148,6 +154,22 @@ impl Lexer {
             self.i += 1;
             return Ok(t);
         }
+        if c == '&' && self.peek(1).is_some_and(|d| d.is_ascii_alphabetic()) {
+            self.i += 1;
+            let mut s = String::new();
+            while let Some(ch) = self.peek(0) {
+                if ch.is_ascii_alphanumeric() || ch == '_' {
+                    s.push(ch);
+                    self.i += 1;
+                } else if ch == '-' && self.peek(1).map_or(false, |d| d.is_ascii_alphanumeric()) {
+                    s.push(ch);
+                    self.i += 1;
+                } else {
+                    break;
+                }
+            }
+            return Ok(Tok::Field(s));
+        }
         if c == '"' {
             let mut body = String::new();
             self.i += 1;
@@ -214,9 +236,12 @@ impl Lexer {
                     break;
                 }
             }
+            if let Ok(v) = s.parse::<i64>() {
+                return Ok(Tok::Int(v));
+            }
             return s
-                .parse::<i64>()
-                .map(Tok::Int)
+                .parse::<i128>()
+                .map(Tok::BigInt)
                 .map_err(|_| format!("line {}: bad integer {s}", self.line));
         }
         if c.is_ascii_alphabetic() {

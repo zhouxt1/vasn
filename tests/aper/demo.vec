@@ -1,0 +1,15 @@
+# examples/asn1/demo.asn1 in the ALIGNED variant. Found by
+# byte mutation, derived by hand from X.691 (02/2021) 20.6, 11.9.3.8.
+#
+# Unsupported-2 ::= SEQUENCE OF Alpha, 3 bits an element (Alpha has 8
+# values). 16385 elements: c1 (one fragment of 16K components, 11.9.3.8),
+# 6144 octets holding 16384 elements, then the rest as a length, 01, and
+# one element, 001 (alpha04): c1 00..00 01 20.
+#
+# rasn 0.28 rejects it ("Need more data to continue: Size(1)"), and accepts
+# the 16384 elements alone (c1 00..00 00): it misreads what follows a
+# fragment of a SEQUENCE OF.
+deviates rasn Unsupported-2
+# pycrate 0.7.11's ALIGNED encoder fails on a fragmented SEQUENCE OF
+# (x691-sizes.vec); its decoder reads the above
+deviates-encode pycrate Unsupported-2

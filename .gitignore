@@ -2,7 +2,7 @@
 tools/verus-x86-linux/
 tools/*.zip
 # asn1c, built by tools/get-asn1c.sh
-tools/asn1c/
+tools/asn1c
 tools/asn1c-src/
 
 # build outputs
@@ -20,3 +20,6 @@ generated/
 difftest/
 proto/
 5GShield_Dataset.zip
+
+# protocols/: downloads, builds and captures
+protocols/work/

@@ -3,8 +3,10 @@
 ## What it is
 
 vasn (verified ASN.1) generates ASN.1 codecs whose correctness is proved in
-[Verus](https://github.com/verus-lang/verus), for unaligned PER (ITU-T
-X.691), the encoding 5G and LTE RRC and ETSI ITS use. `vasnc` compiles an
+[Verus](https://github.com/verus-lang/verus), for PER (ITU-T X.691) in both
+its variants: unaligned, which 5G and LTE RRC and ETSI ITS use, and aligned,
+which the RAN's application protocols use (NGAP, F1AP, E1AP, XnAP, S1AP,
+X2AP, NRPPa, LPPa) and O-RAN's E2 (E2AP, E2SM-KPM, E2SM-RC). `vasnc` compiles an
 ASN.1 schema into Rust encoders and decoders, each generated type with its
 proof. `vasn` is the verified runtime the generated code builds on, over
 `vbits`, a verified bit layer, and `vsimd`, verified SSE2, both from
@@ -15,13 +17,16 @@ traffic (every channel message of
 [5G Shield](bench/decode/README.md#citation)'s over-the-air NR RRC
 captures), vasn decodes 1.7 to 3.7 times faster than asn1c and 4.7 to 6.8
 times faster than rasn, and encodes 2.6 to 9.6 times faster than asn1c and
-31 to 206 times faster than rasn, on every channel (OVERVIEW.md §3). And it
-is verified:
+31 to 206 times faster than rasn, on every channel. On aligned-PER traffic
+captured from open-source 5G stacks (Open5GS, OpenAirInterface, FlexRIC),
+it decodes the 3GPP and O-RAN application protocols 2.0 to 5.2 times faster
+than asn1c and encodes them 2.2 to 4.0 times faster (OVERVIEW.md §3). And it is verified:
 
 * **Correct by proof.** Each decoder accepts exactly the encodings X.691
   allows, and returns the value they encode; each encoder writes exactly
-  that encoding. Verus checks the proof for every generated type, all 6,919
-  of NR RRC Rel-17 included.
+  that encoding. Verus checks the proof for every generated type: all 6,919
+  of NR RRC Rel-17, and every type of the twelve 3GPP and O-RAN protocols
+  above, compiled whole from their specifications (27,170 crates).
 * **Free of memory bugs.** The codecs and their runtime are safe Rust, with
   no `unsafe`, and are proved never to panic (no out-of-bounds index, no
   arithmetic overflow) and always to terminate. A decoder is proved so on
@@ -66,7 +71,7 @@ cargo verus verify --workspace --release
 ```
 
 This verifies `vbits` (145 obligations) and `vsimd` (182), which cargo fetches
-from verified_binary_formats, `vasn` (345) and every example codec, ETSI ITS included (2410), with 0 errors, in a few minutes.
+from verified_binary_formats, `vasn` (580) and every example codec, ETSI ITS included (2410), with 0 errors, in a few minutes.
 Plain `cargo build` compiles the same code with the proofs erased.
 
 ## Use it on your own schema
@@ -111,13 +116,24 @@ Every type also gets `T_jer`, which prints the value as JER (X.697), and
 `T_arb`, which generates a random valid value. `cargo verus verify` in your
 crate re-checks the proofs for your schema.
 
+For aligned PER, `vasnc --aper`. Its decoders and encoders take the same
+`BitReader` and `BitWriter` (`vasn::aper::cursor` re-exports them, with the
+aligned reads and writes); a whole message is
+`T_decode_complete(&mut r)` and `T_encode_complete(&mut w, &v)`, which also
+check and write the padding to the octet (X.691 11.1.4). Information object
+classes are read: a 3GPP container's IE is a keyed type whose value is the
+type its `id` selects, and an IE from a newer version of the protocol is kept
+as `Unknown(id, octets)`. `protocols/README.md` shows how the 3GPP and O-RAN
+protocols are built from their specifications.
+
 `vasnc` options:
 
 | | |
 | --- | --- |
 | `vasnc a.asn1 b.asn1 ... out.rs` | every module of every input, in one namespace, with IMPORTS checked |
+| `--aper` | aligned PER instead of unaligned |
 | `--containing decode` | decode `OCTET STRING (CONTAINING T)` as the `T`. The default, `octets`, keeps the octets, as asn1c does |
-| `--crate-dir DIR` | one crate per type, plus a Makefile that verifies them in parallel and incrementally (`make -j$(nproc)`). This is how all of NR RRC (6919 types) is verified. Set `ROOT=` to a checkout of this repository so the Makefile can build `vasn` |
+| `--crate-dir DIR` | one crate per type, plus a Makefile that verifies them in parallel and incrementally (`make -j$(nproc)`). This is how all of NR RRC (6919 types) and the protocols are verified. Set `ROOT=` to a checkout of this repository so the Makefile can build `vasn` |
 | `--output-dir DIR` | one module per type, in one crate |
 | `--stats` | what the schema uses, and what would be skipped |
 
@@ -128,10 +144,12 @@ and the type is skipped rather than approximated.
 
 | | |
 | --- | --- |
-| `vasn/` | The verified runtime, built on `vbits` (re-exported as `vasn::bits`) and `vsimd`, from [verified_binary_formats](https://github.com/zhouxt1/verified_binary_formats). `src/uper/` holds unaligned PER: the bit reader and writer (`cursor.rs`), the format definition and its combinators (`format.rs`), and one proved format for each X.691 building block: integers (`intx.rs`), length determinants (`lendet.rs`), fragmentation (`frag.rs`, `fraglist.rs`), open types and the extensible SEQUENCE (`seqext.rs`). `src/utf8.rs`, `time.rs`, `oid.rs` and `real.rs` are the proved checks of UTF-8, of the time types' DER forms, of OBJECT IDENTIFIER contents and of REAL's CER/DER form; `jer.rs` and `arb.rs` are the unverified JER printer and value generator |
-| `vasnc/` | The compiler: lexer, parser, constraint resolution (`constraints.rs`), normalization, and the code and proof generator (`emit.rs`). Not itself verified: see OVERVIEW.md |
+| `vasn/` | The verified runtime, built on `vbits` (re-exported as `vasn::bits`) and `vsimd`, from [verified_binary_formats](https://github.com/zhouxt1/verified_binary_formats). `src/aper/` holds aligned PER, UPER's formats indexed by the bit position they start at, with what X.691 aligns, the keyed and 64-bit formats and the complete encoding; `src/uper/` holds unaligned PER: the bit reader and writer (`cursor.rs`), the format definition and its combinators (`format.rs`), and one proved format for each X.691 building block: integers (`intx.rs`), length determinants (`lendet.rs`), fragmentation (`frag.rs`, `fraglist.rs`), open types and the extensible SEQUENCE (`seqext.rs`). `src/utf8.rs`, `time.rs`, `oid.rs` and `real.rs` are the proved checks of UTF-8, of the time types' DER forms, of OBJECT IDENTIFIER contents and of REAL's CER/DER form; `jer.rs` and `arb.rs` are the unverified JER printer and value generator |
+| `vasnc/` | The compiler: lexer, parser, information object classes (`ioc.rs`), constraint resolution (`constraints.rs`), normalization (and the unrolling of recursive types), and the code and proof generator (`emit.rs`, `emit/`). Not itself verified: see OVERVIEW.md |
 | `examples/` | `asn1/` holds seven small schemas, one per feature, and ETSI ITS (CAM, DENM and ITS-Container). `src/` holds the codecs `vasnc` generates from them, which are checked in, and `src/bin/` holds a driver for each that checks encodings by hand against X.691. `cargo test` fails if a checked-in codec is out of date |
 | `tests/x691/` | 17 test modules with encodings derived by hand from X.691, and 6 more checked with random values (OBJECT IDENTIFIER, REAL, the strings beyond ISO 646, the time types), run through ours, pycrate, asn1c and rasn. Each deviation from X.691 found in them is recorded in its README. `tests/protocols/its.vec` holds the same check for ETSI ITS, and `tests/examples/` the references' deviations on two of the examples |
+| `tests/aper/`, `tests/ioc/`, `tests/wide/` | The same in aligned PER: its own modules (alignment, integers, the strings beyond ISO 646, OBJECT IDENTIFIER, REAL, a recursive type), the X.691 modules and the examples; the 3GPP protocols' information object classes, and the deviations of the references found on them; the 64-bit counters |
+| `protocols/` | The twelve aligned-PER protocols: their ASN.1 fetched and extracted from the specifications, built, verified, checked against asn1c and pycrate on random values and on captured traffic (`protocols/corpus/`), timed against asn1c, and the scripts that captured the traffic. See its README |
 | `tools/` | `get-verus.sh` and `get-asn1c.sh` fetch the pinned Verus release and build asn1c. `xcheck.py` cross-checks one schema against pycrate, asn1c and rasn. `dep-src.sh` prints where cargo put the sources of `vbits` and `vsimd`, which the builds that run Verus directly (`xcheck.py`, `vasnc --crate-dir`'s Makefile) compile. `frag_pycrate.py` compares the fragmentation example with pycrate |
 | `bench/decode/` | Decoding and encoding speed on 5G Shield's over-the-air NR RRC captures, against asn1c, rasn and VUPER. See its README |
 | `docs/spec/` | `get.sh` downloads ITU-T X.680, X.690, X.691 and X.697 (02/2021): the editions every clause number in the code refers to |
@@ -144,6 +162,8 @@ installs it; rasn 0.28.14 itself comes from cargo). `--no-rasn` leaves rasn out:
 
 ```bash
 tests/x691/run.sh                    # all 23 modules: vectors, 40 random values each, verified
+tests/aper/run.sh                    # the same in aligned PER, and the examples
+tests/ioc/run.sh; tests/wide/run.sh  # information object classes, 64-bit counters
 tools/xcheck.py examples/asn1/its.asn1 --vectors tests/protocols/its.vec -n 50
 tools/xcheck.py examples/asn1/frag.asn1 --vectors tests/examples/frag.vec -n 40   # likewise ext
 ```

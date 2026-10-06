@@ -6,6 +6,8 @@
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum Num {
     Lit(i64),
+    /// a literal outside `i64`; only a bound may be one
+    Big(i128),
     /// A reference to a value assignment (`maxNrofCells` etc).
     Ref(String),
 }
@@ -29,6 +31,9 @@ pub enum IntCons {
     SemiExt(Num),
     /// an extensible constraint whose root has no lower bound, `(MIN..5, ...)`
     NoneExt,
+    /// `(0..18446744073709551615)`: every `u64`, 64 bits in UNALIGNED and
+    /// one to eight octets in ALIGNED (X.691 11.5.7.4)
+    U64,
 }
 
 /// The effective size constraint (X.691 10.3.10), in the same shape.
@@ -172,6 +177,9 @@ impl StringKind {
 pub enum Type {
     Boolean,
     Null,
+    /// No value: where a recursive type is cut off (`normalize::unroll_recursion`).
+    /// Its decoder rejects, and its encoder refuses.
+    Never,
     Integer(IntCons),
     /// Root values, then -- if there is a `...` -- the extension values after
     /// it. `Some(vec![])` is extensible with no extension values yet, which
@@ -225,6 +233,39 @@ pub enum Type {
     /// (X.691 10.6.3) except through canonical order (10.2), which
     /// `constraints::resolve` settles before removing them.
     Tagged(Tag, Box<Type>),
+    /// `CLASS.&field` (X.681 14.1), with its table constraint (X.682 10):
+    /// `({Set})` gives `set`, `({Set}{@key})` also `key`, the sibling
+    /// component whose value selects the object. Only the parser makes
+    /// these; `ioc::elaborate` replaces every one.
+    ClassField { class: String, field: String, set: Option<String>, key: Option<String> },
+    /// A type field (`&Value`) under a component relation constraint
+    /// `({Set}{@key})`, after `ioc::elaborate`: an open type (X.691 11.2)
+    /// whose content is a value of the type that the object of `set` with
+    /// the sibling `key`'s value gives for `field`. Only a component of a
+    /// SEQUENCE has one.
+    Dispatch { set: String, field: String, key: String },
+    /// A SEQUENCE whose first component, `key`, selects through component
+    /// relation constraints what its other components' open types hold
+    /// (`ProtocolIE-Field`, `InitiatingMessage`), after `ioc::elaborate`:
+    /// the key's value, then the rest of the components as the type
+    /// `alts` gives for that value -- a SEQUENCE of the other components,
+    /// each open type a `Contains` of its object's type. A key no object
+    /// has is a newer peer's and selects `unknown`, whose open types are
+    /// octets, when every set involved is extensible (`ext`); otherwise it
+    /// is an error. Encoded exactly as the SEQUENCE it came from.
+    Keyed {
+        key_name: String,
+        key: Box<Type>,
+        /// (key value, the value reference it was written as, the rest's type)
+        alts: Vec<(i64, String, String)>,
+        unknown: String,
+        ext: bool,
+    },
+    /// An open type (X.691 11.2) that holds a `T`: a component that a
+    /// component relation constraint gives `T`, in a `Keyed`'s rest. Encoded
+    /// and proved as `Contains` is; its JER is the `T`'s own (X.697 31),
+    /// with no `containing` member around it.
+    Open(Box<Type>),
     /// `OCTET STRING (CONTAINING T)` under `--containing decode`: a `T`,
     /// carried as its complete encoding (X.691 11.1) in an unconstrained
     /// OCTET STRING, which is an open type's encoding (11.2). Under the
@@ -312,12 +353,48 @@ pub struct Field {
     pub presence: Presence,
 }
 
+/// A field of an information object class (X.681 9.2).
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ClassField {
+    /// without the `&`
+    pub name: String,
+    /// `Some(T)` for a fixed-type value field (`&id ProtocolIE-ID`), `None`
+    /// for a type field (`&Value`). Other kinds of field are rejected.
+    pub ty: Option<Type>,
+    pub unique: bool,
+    pub optional: bool,
+    /// a DEFAULT, as its tokens
+    pub default: Option<Vec<crate::lexer::Tok>>,
+}
+
+/// An item of a class's `WITH SYNTAX` (X.681 10.5).
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum SynItem {
+    /// a literal word, `ID`, `CRITICALITY`
+    Word(String),
+    /// where the setting of `&name` goes
+    Field(String),
+    /// `[ ... ]`, an optional group
+    Opt(Vec<SynItem>),
+}
+
 #[derive(Debug, Clone)]
 pub enum Assignment {
     Type { name: String, ty: Type },
     Value { name: String, value: i64 },
-    /// `Name { Param } ::= ...` — recorded but not expanded yet.
+    /// `Name { Param } ::= ...` — recorded but not expanded yet. A
+    /// parameter with a governor (`NGAP-PROTOCOL-IES : IEsSetParam`,
+    /// `INTEGER : lowerBound`, X.683 8.4) is recorded by its name.
     ParamType { name: String, params: Vec<String>, ty: Type },
+    /// `NAME ::= CLASS { fields } [WITH SYNTAX { ... }]` (X.681 9)
+    Class { name: String, fields: Vec<ClassField>, syntax: Option<Vec<SynItem>> },
+    /// `name CLASS ::= { ... }` (X.681 11): the tokens between the braces,
+    /// read through the class's syntax by `ioc::elaborate`, since the class
+    /// may be defined in another module. An OBJECT IDENTIFIER value
+    /// assignment, `name OBJECT IDENTIFIER ::= { ... }`, lands here too.
+    Object { name: String, class: String, body: Vec<crate::lexer::Tok> },
+    /// `Name CLASS ::= { ... }` (X.681 12), as its tokens.
+    ObjectSet { name: String, class: String, body: Vec<crate::lexer::Tok> },
 }
 
 /// What a module's header says about the types written in it (X.680 13.1):
@@ -340,6 +417,21 @@ pub struct Module {
     /// names each module imports, and from where (X.680 13.16)
     pub imports: Vec<(String, String)>,
     pub assignments: Vec<Assignment>,
+    /// per (object set, type field) that a component relation constraint
+    /// selects from, the table `ioc::elaborate` built
+    pub dispatch: std::collections::HashMap<(String, String), DispatchTable>,
+}
+
+/// The objects of a set that define a type field, by the value of the
+/// set's key field (X.682 10.7): what a `Type::Dispatch` selects from.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct DispatchTable {
+    /// (key value, the value reference it was written as, the type), in
+    /// the set's order; the types are all named (`Type::Ref`)
+    pub alts: Vec<(i64, String, String)>,
+    /// whether the set is extensible (`...`): a key not in it is then a
+    /// newer peer's object, kept as its octets, rather than an error
+    pub ext: bool,
 }
 
 impl Module {
@@ -348,10 +440,55 @@ impl Module {
     }
 }
 
-fn assignment_name(a: &Assignment) -> &str {
+pub fn assignment_name(a: &Assignment) -> &str {
     match a {
-        Assignment::Type { name, .. } | Assignment::Value { name, .. } | Assignment::ParamType { name, .. } => name,
+        Assignment::Type { name, .. } | Assignment::Value { name, .. } | Assignment::ParamType { name, .. }
+        | Assignment::Class { name, .. } | Assignment::Object { name, .. } | Assignment::ObjectSet { name, .. } => name,
     }
+}
+
+/// The names each module uses but neither defines nor imports (X.680 13.16),
+/// as (name, module): the one namespace `merge` makes would hide them. E2AP
+/// V3.01's E2AP-PDU-Contents uses `RICtimeToWait` and does not import it,
+/// and its E2AP-PDU-Descriptions `RICQueryRequest` (in an object set). A
+/// word in an object or object set counts when another module defines it
+/// (it may be one of the class's syntax words, or an ENUMERATED value).
+pub fn unimported(mods: &[Module]) -> Vec<(String, String)> {
+    let mut out = Vec::new();
+    let everywhere: std::collections::HashSet<&str> =
+        mods.iter().flat_map(|m| m.assignments.iter().map(assignment_name)).collect();
+    for m in mods {
+        let mut known: std::collections::HashSet<&str> = m.assignments.iter().map(assignment_name).collect();
+        known.extend(m.imports.iter().map(|(n, _)| n.as_str()));
+        for a in &m.assignments {
+            let mut refs = Vec::new();
+            let params: &[String] = match a {
+                Assignment::Type { ty, .. } => { crate::emit::collect_refs(ty, &mut refs); &[] }
+                Assignment::ParamType { ty, params, .. } => { crate::emit::collect_refs(ty, &mut refs); params }
+                Assignment::Object { body, .. } | Assignment::ObjectSet { body, .. } => {
+                    for t in body {
+                        if let crate::lexer::Tok::Word(w) = t {
+                            if everywhere.contains(w.as_str()) {
+                                refs.push(w.clone());
+                            }
+                        }
+                    }
+                    &[]
+                }
+                _ => &[],
+            };
+            // a parameter's actual value may be a number (`{1, maxnoofX, ...}`)
+            refs.retain(|r| r.starts_with(|c: char| c.is_ascii_alphabetic()));
+            for r in refs {
+                if !known.contains(r.as_str()) && !params.contains(&r)
+                    && !out.iter().any(|(n, mm): &(String, String)| *n == r && *mm == m.name)
+                {
+                    out.push((r, m.name.clone()));
+                }
+            }
+        }
+    }
+    out
 }
 
 /// Every module of the input as one namespace. ASN.1 names are per module,
@@ -361,6 +498,7 @@ fn assignment_name(a: &Assignment) -> &str {
 /// defines is returned, for the caller to report.
 pub fn merge(mods: Vec<Module>) -> Result<(Module, Vec<(String, String)>), String> {
     let mut out = Module {
+        dispatch: std::collections::HashMap::new(),
         name: mods.iter().map(|m| m.name.as_str()).collect::<Vec<_>>().join(", "),
         env: mods.first().map_or(ModEnv { tag_default: TagDefault::Explicit, ext_implied: false }, |m| m.env),
         envs: std::collections::HashMap::new(),

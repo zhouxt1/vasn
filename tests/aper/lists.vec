@@ -1,0 +1,20 @@
+# Checked against the references at random only (examples/asn1/lists.asn1).
+#
+# asn1c pads after a zero-length BIT STRING (11.9.3.3 NOTE 2 says none, see
+# OVERVIEW.md §3): a TaggedList whose element holds an empty VarBits it reads
+# out of step from there
+deviates asn1c TaggedList
+# rasn 0.28, ALIGNED: the alignment faults of alignment.vec (lists'
+# elements aligned, a zero length padded)
+deviates rasn AltList
+deviates rasn Cfg
+deviates rasn ColourList
+deviates rasn Grid
+deviates rasn NibbleList
+deviates rasn Packet
+deviates rasn TaggedList
+#
+# Found by byte mutation (X.691 (02/2021)): Blob ::= OCTET
+# STRING, its length in the two-octet form of 11.9.3.7, 80 00, for 0, which
+# 11.9.3.6 puts in one octet.
+reject! Blob 8000  # asn1c, rasn accept ""

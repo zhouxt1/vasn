@@ -1,0 +1,17 @@
+# Hand-derived from X.691 (02/2021), ALIGNED; no reference compiles this
+# module, so these are checked against ours alone.
+#
+# UnivQ: {0,0,0,65}..{0,0,0,70} is "A".."F": N = 6, b = 4, "F" = 70 > 15, so
+# the index (30.5.4 b); an unconstrained length, then the characters aligned.
+accept UnivQ 0212 "BC"
+accept UnivQ 0150 "F"
+# BmpQ: U+0410..U+044F, N = 64, B = 6, b = 8; U+044F > 255, so the index.
+# SIZE (1..4): the length less 1 in 2 bits; 4 x 8 >= 16, aligned (30.5.7).
+accept BmpQ 0000 "А"
+accept BmpQ 001f "Я"
+accept BmpQ 400001 "АБ"
+reject BmpQ 0040  # index 64: there are 64 characters
+# Iso: VisibleString (SIZE (2)), 2 x 8 = 16, not above 16: not aligned (30.5.6)
+accept Iso 6869 "hi"
+# GtS: SIZE (15) on GeneralizedTime is not PER-visible (10.3.16): a length
+accept GtS 0f32303234303932353132303030305a "20240925120000Z"

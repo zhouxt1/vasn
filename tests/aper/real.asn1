@@ -1,0 +1,7 @@
+-- REAL (X.691 15): the CER/DER contents octets (X.690 8.5, 11.3) behind an
+-- unconstrained length, octet-aligned.
+Reals DEFINITIONS AUTOMATIC TAGS ::= BEGIN
+R ::= REAL
+RC ::= REAL (0..100)  -- not PER-visible (X.691 10.3.14)
+S ::= SEQUENCE { f BOOLEAN, r REAL, o REAL OPTIONAL }
+END

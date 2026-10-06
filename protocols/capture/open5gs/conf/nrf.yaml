@@ -1,0 +1,13 @@
+logger:
+  path:
+    file: /tmp/nrf.log
+global:
+nrf:
+  serving:
+  - plmn_id:
+      mcc: 999
+      mnc: 70
+  sbi:
+    server:
+    - address: 127.0.0.10
+      port: 7777

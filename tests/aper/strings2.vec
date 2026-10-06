@@ -1,0 +1,91 @@
+# Hand-derived from X.691 (02/2021), ALIGNED variant: 30.5 for BMPString and
+# UniversalString, 30.6 for the strings that are not known-multiplier, 10.6.5
+# for the useful types.
+
+# pycrate 0.7.11 cannot print (to_jer) a GeneralString, GraphicString,
+# TeletexString, T61String, VideotexString or ObjectDescriptor it decoded:
+# "'STR_GENE' object has no attribute '_get_val_obj'". A BMPString with a
+# permitted alphabet fails to compile inside it ("name 'V' is not defined").
+deviates pycrate Gen
+deviates pycrate Graph
+deviates pycrate Tel
+deviates pycrate T61
+deviates pycrate Vid
+deviates pycrate Rec
+deviates pycrate BmpA
+# pycrate fragments a BMPString or UniversalString of 16K characters or more
+# in units of octets, not characters (30.5.7 and 11.9.3.8 count characters):
+# 49152 BMP characters it sends as a 64K-octet fragment, `c4`, where X.691's
+# is three 16K-character fragments, `c3`. It decodes X.691's correctly.
+deviates pycrate Bmp
+deviates pycrate Univ
+
+# BmpA: 36 characters, B = 6, b = 8 (30.5.2); "z" = 122 <= 255, so each is
+# its own code (30.5.4 a). SIZE (0..10): the length in 4 bits; 10 x 8 >= 16,
+# so the characters are octet-aligned (30.5.7).
+accept! BmpA 1071 "q"  # asn1c: permitted alphabets on BMPString, below
+accept! BmpA 207132 "q2"
+accept! BmpA 00 ""  # no characters, so no padding (11.9.3.3)
+reject! BmpA 1041  # "A" is not in the alphabet
+# UnivA: "ABCDEF", N = 6, B = 3, b = 4; "F" = 70 > 15, so the index (30.5.4 b).
+# Unconstrained length: one octet, then the characters, aligned.
+accept! UnivA 0212 "BC"  # asn1c decodes "AE"
+accept! UnivA 0150 "F"
+reject! UnivA 0160  # index 6: there are 6 characters
+# Bmp: unconstrained, b = 16, each character its code.
+accept! Bmp 0100e9 "é"
+accept! Bmp 0203a903c9 "Ωω"
+accept! Bmp 00 ""
+# a surrogate code is a BMPString character to X.691 (30.5.3: 0 to 2^16 - 1)
+# BmpF: SIZE (1), 16 bits, not aligned (30.5.6: 1 x 16 is not above 16).
+accept! BmpF 0041 "A"
+# Univ: b = 32.
+accept! Univ 010001f600 "\ud83d\ude00"
+# UnivS: SIZE (0..3): the length in 2 bits, then aligned (3 x 32 >= 16).
+accept! UnivS 4000000041 "A"
+# asn1c maps a permitted alphabet on a BMPString or UniversalString to
+# values of its own: `0212` for UnivA it decodes as "AE", `1071` for BmpA as
+# "s". It agrees with X.691 on IA5String's (tests/x691/strings.vec).
+deviates asn1c BmpA
+deviates asn1c UnivA
+
+# Gen: an unconstrained length in octets, then the octets (30.6.3).
+accept! Gen 023d28 "=("
+accept! Gen 00 ""
+# asn1c and pycrate take a time in any form, not only X.690 11.7's and 11.8's;
+# pycrate re-encodes it in its own (`2409251200Z` as `240925120000Z`).
+# UTCTime, GeneralizedTime: a VisibleString, 8 bits a character, an
+# unconstrained length (10.6.5, 30.5.7), in X.690 11.8's and 11.7's forms.
+accept! UT 0d3234303932353132303030305a "240925120000Z"
+reject! UT 0b323430393235313230305a  # 2409251200Z: no seconds (X.690 11.8)
+reject! UT 113234303932353132303030302b30313030  # an offset, not Z
+reject! UT 0d3234313332353132303030305a  # month 13
+accept! GT 0f32303234303932353132303030305a "20240925120000Z"
+accept! GT 1132303234303932353132303030302e355a "20240925120000.5Z"
+reject! GT 1232303234303932353132303030302e35305a  # .50: a trailing 0 (X.690 11.7.3)
+reject! GT 1032303234303932353132303030302e5a  # an empty fraction
+reject! GT 0d3230323430393235313230305a  # 202409251200Z: no seconds (X.690 11.7.2)
+
+# rasn 0.28 (rasn-compiler 0.16), APER: no BMPString or TeletexString
+# (`todo!()`, rasn per/de.rs:894, 898); a UTCTime or GeneralizedTime it
+# decodes as BER; a UniversalString it misreads ("廱" as two
+# U+0000). And its encoder corrupts a fragmented character string whose
+# length is not a multiple of 16K (16385, 32767, 40000 characters: the last
+# fragment repeats the first's characters); it decodes them right, and an
+# OCTET STRING of those lengths it encodes right.
+deviates rasn Bmp
+deviates rasn BmpS
+deviates rasn BmpF
+deviates rasn BmpA
+deviates rasn BmpX
+deviates rasn Tel
+deviates rasn T61
+deviates rasn UT
+deviates rasn GT
+deviates rasn Univ
+deviates rasn UnivS
+deviates rasn UnivA
+deviates rasn Rec
+deviates-encode rasn Gen
+deviates-encode rasn Graph
+deviates-encode rasn Vid
